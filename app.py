@@ -11,9 +11,8 @@ import json
 import subprocess
 import sys
 import time
-import urllib.error
-import urllib.request
 from pathlib import Path
+from typing import Optional
 
 import altair as alt
 import duckdb
@@ -384,7 +383,7 @@ def format_delta(delta: float, suffix: str = "") -> str:
     return f"{delta:+.1f}{suffix}"
 
 
-def metric_card(label: str, value: str, delta: float | None, ring_score: float, ring_label: str, color: str, suffix: str = "", inverse: bool = False) -> None:
+def metric_card(label: str, value: str, delta: Optional[float], ring_score: float, ring_label: str, color: str, suffix: str = "", inverse: bool = False) -> None:
     """Render a compact production-style metric card with a status ring."""
     score_percent = max(0, min(100, ring_score))
     score_class = "score long" if len(value) >= 6 else "score"
@@ -424,6 +423,8 @@ def style_chart(chart: alt.Chart, height: int = 300) -> alt.Chart:
             labelFont="IBM Plex Mono",
             titleFont="Inter",
         )
+        .configure_axisX(labelAngle=-35, labelLimit=150)
+        .configure_axisY(labelAngle=0, labelLimit=170)
         .configure_legend(
             labelColor=PALETTE["muted"],
             titleColor=PALETTE["muted"],
@@ -466,6 +467,29 @@ def explain_metric(selected_cohort: str, latest: pd.Series, previous: pd.Series)
 
 def option_label(value: str) -> str:
     return value.replace("_", " ").title()
+
+
+METRIC_LABELS = {
+    "avg_recovery": "Average Recovery",
+    "avg_sleep_hours": "Average Sleep Hours",
+    "avg_strain": "Average Strain",
+    "avg_app_minutes": "Average App Minutes",
+    "low_recovery_pct": "Low Recovery Rate",
+    "low_engagement_pct": "Low Engagement Rate",
+    "new_members_30d": "New Members 30D",
+    "retention_rate_pct": "Retention Rate 30D",
+    "subscription_continuity_pct": "Subscription Continuity 30D",
+    "active_members_30d": "Active Members 30D",
+    "active_members": "Active Members",
+    "table_name": "Table",
+    "model_type": "Model Type",
+    "row_count": "Rows",
+    "algorithm_version": "Algorithm Version",
+}
+
+
+def metric_label(value: str) -> str:
+    return METRIC_LABELS.get(value, option_label(value))
 
 
 def experiment_variant_label(value: str) -> str:
@@ -565,6 +589,141 @@ def assistant_answer(prompt: str, lifecycle: pd.DataFrame, member_days: pd.DataF
     )
 
 
+def estimate_tokens(text: str) -> int:
+    """Approximate token count for a local, non-API assistant trace."""
+    return max(1, round(len(text) / 4))
+
+
+def dataframe_records(df: pd.DataFrame, max_rows: int = 8) -> list[dict[str, object]]:
+    return json.loads(df.head(max_rows).to_json(orient="records"))
+
+
+def governed_assistant_response(
+    prompt: str,
+    lifecycle: pd.DataFrame,
+    member_days: pd.DataFrame,
+    experiment_summary: pd.DataFrame,
+    checks: pd.DataFrame,
+    latest_run: pd.Series,
+    dictionary: pd.DataFrame,
+) -> tuple[str, dict[str, object]]:
+    """Route natural-language questions to governed analytical functions.
+
+    This is intentionally deterministic: it behaves like a small tool-calling
+    layer without sending prompts to an external model or requiring local LLMs.
+    """
+    started = time.perf_counter()
+    question = prompt.lower()
+    summary = lifecycle_summary(lifecycle)
+    rollup = daily_rollup(member_days)
+    latest_day = rollup.iloc[-1]
+    previous_day = rollup.iloc[-2] if len(rollup) > 1 else latest_day
+    selected_tool = "summarize_member_segment"
+    confidence = "medium"
+
+    if any(word in question for word in ["experiment", "algorithm", "release", "variant", "baseline", "candidate", "a/b", "ab test"]):
+        selected_tool = "summarize_algorithm_experiment"
+        confidence = "high"
+        answer = experiment_answer(prompt, experiment_summary)
+        rows_considered = int(len(experiment_summary))
+    elif any(word in question for word in ["pipeline", "platform", "health", "freshness", "quality", "checks", "models", "tables"]):
+        selected_tool = "summarize_platform_health"
+        confidence = "high"
+        failed_checks = checks[~checks["passed"]]
+        failed_text = "all quality gates are passing" if failed_checks.empty else f"{len(failed_checks)} quality gates need attention"
+        answer = (
+            f"The latest pipeline run is {latest_run['status']} with {latest_run['raw_events']:,} raw events, "
+            f"{latest_run['freshness_hours']:.1f} hours of freshness lag, and {failed_text}. "
+            f"The serving layer currently exposes {latest_run['experiment_days']:,} experiment-day rows and 10 modeled tables."
+        )
+        rows_considered = int(len(checks) + latest_run.get("raw_events", 0))
+    elif any(word in question for word in ["dictionary", "definition", "metric means", "define"]):
+        selected_tool = "lookup_metric_definition"
+        confidence = "medium"
+        matches = dictionary[
+            dictionary.apply(
+                lambda row: row.astype(str).str.lower().str.contains("|".join(question.split()), regex=True).any(),
+                axis=1,
+            )
+        ]
+        if matches.empty:
+            matches = dictionary.head(5)
+        definitions = "; ".join(f"{metric_label(row.metric_name)}: {row.definition}" for row in matches.head(4).itertuples())
+        answer = f"Relevant governed metric definitions: {definitions}"
+        rows_considered = int(len(dictionary))
+    elif any(word in question for word in ["new", "growth", "joined", "signup", "acquisition", "channel"]):
+        selected_tool = "summarize_growth"
+        confidence = "high"
+        by_channel = lifecycle.groupby("acquisition_channel", as_index=False)["new_members_30d"].sum().sort_values("new_members_30d", ascending=False)
+        top = by_channel.iloc[0]
+        answer = (
+            f"There are {summary['new_members_30d']:,} new members in the last 30 days. "
+            f"The strongest acquisition channel is {option_label(top['acquisition_channel'])} with {int(top['new_members_30d']):,} new members."
+        )
+        rows_considered = int(len(lifecycle))
+    elif any(word in question for word in ["retention", "retained", "cohort"]):
+        selected_tool = "summarize_retention"
+        confidence = "high"
+        by_cohort = lifecycle.groupby("cohort", as_index=False).apply(lambda d: pd.Series({"retention_rate_pct": lifecycle_summary(d)["retention_rate_pct"]}))
+        top = by_cohort.sort_values("retention_rate_pct", ascending=False).iloc[0]
+        answer = f"Filtered 30-day retention is {summary['retention_rate_pct']:.1f}%. The strongest cohort is {option_label(top['cohort'])} at {top['retention_rate_pct']:.1f}%."
+        rows_considered = int(len(lifecycle))
+    elif any(word in question for word in ["subscription", "continuity", "plan", "churn", "churned"]):
+        selected_tool = "summarize_subscription_continuity"
+        confidence = "high"
+        by_plan = lifecycle.groupby("plan_type", as_index=False).apply(lambda d: pd.Series({"subscription_continuity_pct": lifecycle_summary(d)["subscription_continuity_pct"]}))
+        top = by_plan.sort_values("subscription_continuity_pct", ascending=False).iloc[0]
+        answer = f"30-day subscription continuity is {summary['subscription_continuity_pct']:.1f}%. {option_label(top['plan_type'])} members have the strongest continuity at {top['subscription_continuity_pct']:.1f}%."
+        rows_considered = int(len(lifecycle))
+    elif any(word in question for word in ["gender", "male", "female", "non binary", "not provided"]):
+        selected_tool = "break_down_members_by_gender"
+        confidence = "high"
+        by_gender = lifecycle.groupby("gender", as_index=False).apply(lambda d: pd.Series({"members": d["total_members"].sum(), "continuity": lifecycle_summary(d)["subscription_continuity_pct"]}))
+        rows = "; ".join(f"{option_label(r.gender)}: {int(r.members):,} members, {r.continuity:.1f}% continuity" for r in by_gender.itertuples())
+        answer = f"Gender breakdown for the current filters: {rows}."
+        rows_considered = int(len(lifecycle))
+    elif any(word in question for word in ["recovery", "sleep", "strain", "performance", "engagement", "risk"]):
+        selected_tool = "summarize_performance_signals"
+        confidence = "high"
+        answer = (
+            f"Latest member-day signals show {latest_day.avg_recovery:.1f}% recovery, "
+            f"{latest_day.avg_sleep_hours:.1f} hours of sleep, {latest_day.avg_strain:.1f} strain, "
+            f"and {latest_day.low_recovery_pct:.1f}% low-recovery risk. Versus the prior day, recovery moved "
+            f"{latest_day.avg_recovery - previous_day.avg_recovery:+.1f} points and sleep moved "
+            f"{latest_day.avg_sleep_hours - previous_day.avg_sleep_hours:+.1f} hours."
+        )
+        rows_considered = int(len(member_days))
+    else:
+        answer = (
+            f"Current filtered population: {summary['total_members']:,} members, {summary['active_members_30d']:,} active in the last 30 days, "
+            f"{summary['retention_rate_pct']:.1f}% 30-day retention, and {summary['subscription_continuity_pct']:.1f}% 30-day subscription continuity. "
+            f"Latest performance signals show {latest_day.avg_recovery:.1f}% recovery, {latest_day.avg_sleep_hours:.1f}h sleep, and {latest_day.avg_strain:.1f} strain."
+        )
+        rows_considered = int(len(lifecycle) + len(member_days))
+
+    latency = time.perf_counter() - started
+    prompt_tokens = estimate_tokens(prompt)
+    completion_tokens = estimate_tokens(answer)
+    metadata = {
+        "mode": "governed_function_router",
+        "selected_tool": selected_tool,
+        "confidence": confidence,
+        "api_calls": 0,
+        "api_cost_usd": 0.0,
+        "prompt_tokens_estimated": prompt_tokens,
+        "completion_tokens_estimated": completion_tokens,
+        "total_tokens_estimated": prompt_tokens + completion_tokens,
+        "rows_considered": rows_considered,
+        "latency_s": round(latency, 3),
+        "filters": {
+            "member_segment": selected_cohort,
+            "gender": selected_gender,
+            "plan": selected_plan,
+        },
+    }
+    return answer, metadata
+
+
 def experiment_answer(prompt: str, experiment_summary: pd.DataFrame) -> str:
     summary = experiment_summary.iloc[0]
     return (
@@ -572,69 +731,6 @@ def experiment_answer(prompt: str, experiment_summary: pd.DataFrame) -> str:
         f"sleep by {summary.sleep_hours_lift:+.2f} hours, and app engagement by {summary.app_minutes_lift:+.2f} minutes. "
         f"Low-recovery rate changed by {summary.low_recovery_pct_delta:+.2f} percentage points, where negative is favorable."
     )
-
-
-def llm_interpretation(prompt: str, grounded_answer: str, context: dict[str, object]) -> tuple[str, dict[str, object]]:
-    """Optionally summarize grounded metrics with Ollama's local HTTP API."""
-    payload = {
-        "model": "llama3.2",
-        "stream": False,
-        "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "You are a concise analytics engineer. Use only the provided grounded answer and context. "
-                    "Do not invent numbers. Explain the business meaning in 2-3 sentences."
-                ),
-            },
-            {
-                "role": "user",
-                "content": f"Question: {prompt}\nGrounded answer: {grounded_answer}\nContext: {context}",
-            },
-        ],
-    }
-    started = time.perf_counter()
-    request = urllib.request.Request(
-        "http://localhost:11434/api/chat",
-        data=json.dumps(payload).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    with urllib.request.urlopen(request, timeout=45) as response:
-        result = json.loads(response.read().decode("utf-8"))
-    latency = time.perf_counter() - started
-    prompt_tokens = result.get("prompt_eval_count")
-    completion_tokens = result.get("eval_count")
-    metadata = {
-        "provider": "local_ollama_native_api",
-        "model": "llama3.2",
-        "latency_s": round(latency, 2),
-        "prompt_tokens": prompt_tokens,
-        "completion_tokens": completion_tokens,
-        "total_tokens": prompt_tokens + completion_tokens if prompt_tokens is not None and completion_tokens is not None else None,
-        "total_duration_s": round(result.get("total_duration", 0) / 1_000_000_000, 2) if result.get("total_duration") else None,
-        "estimated_cost_usd": 0.0,
-    }
-    answer = result.get("message", {}).get("content")
-    return answer or grounded_answer, metadata
-
-
-def check_ollama_status() -> tuple[bool, str]:
-    """Return whether the local Ollama runtime is reachable before calling it."""
-    try:
-        with urllib.request.urlopen("http://localhost:11434/api/tags", timeout=0.8) as response:
-            payload = json.loads(response.read().decode("utf-8"))
-    except (urllib.error.URLError, TimeoutError, OSError):
-        return False, "Local Ollama is not reachable. Start it with `ollama serve` after installing Ollama."
-    except json.JSONDecodeError:
-        return False, "Local Ollama responded, but the model registry response was not readable."
-
-    models = sorted(model.get("name", "") for model in payload.get("models", []) if model.get("name"))
-    if any(model.startswith("llama3.2") for model in models):
-        return True, "Connected to local Ollama. `llama3.2` is available for interpretation."
-    if models:
-        return True, f"Connected to local Ollama. Available models: {', '.join(models[:3])}."
-    return False, "Ollama is running, but no local models are installed. Run `ollama pull llama3.2`."
 
 
 st.set_page_config(page_title="Member Insights", layout="wide", initial_sidebar_state="expanded")
@@ -711,9 +807,9 @@ with tab_growth:
     with col1:
         metric_card("New Members 30D", f"{lifecycle_kpis['new_members_30d']:,}", None, min(100, lifecycle_kpis["new_members_30d"]), "NEW", PALETTE["cyan"])
     with col2:
-        metric_card("Retention Rate", f"{lifecycle_kpis['retention_rate_pct']:.1f}%", None, lifecycle_kpis["retention_rate_pct"], "RET", score_color(lifecycle_kpis["retention_rate_pct"]))
+        metric_card("Retention Rate 30D", f"{lifecycle_kpis['retention_rate_pct']:.1f}%", None, lifecycle_kpis["retention_rate_pct"], "RET", score_color(lifecycle_kpis["retention_rate_pct"]))
     with col3:
-        metric_card("Subscription Continuity", f"{lifecycle_kpis['subscription_continuity_pct']:.1f}%", None, lifecycle_kpis["subscription_continuity_pct"], "SUB", score_color(lifecycle_kpis["subscription_continuity_pct"]))
+        metric_card("Subscription Continuity 30D", f"{lifecycle_kpis['subscription_continuity_pct']:.1f}%", None, lifecycle_kpis["subscription_continuity_pct"], "SUB", score_color(lifecycle_kpis["subscription_continuity_pct"]))
     with col4:
         metric_card("Active Members 30D", f"{lifecycle_kpis['active_members_30d']:,}", None, 100, "ACT", PALETTE["green"])
 
@@ -723,21 +819,30 @@ with tab_growth:
         retention_by_cohort = filtered_life.groupby("cohort", as_index=False).apply(
             lambda d: pd.Series({"retention_rate_pct": lifecycle_summary(d)["retention_rate_pct"], "members": d["total_members"].sum()})
         )
+        retention_by_cohort["member_segment"] = retention_by_cohort["cohort"].map(option_label)
         chart = alt.Chart(retention_by_cohort).mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
-            x=alt.X("cohort:N", title=None, sort="-y"),
-            y=alt.Y("retention_rate_pct:Q", title="Retention %"),
+            x=alt.X("member_segment:N", title=None, sort="-y", axis=alt.Axis(labelAngle=-35)),
+            y=alt.Y("retention_rate_pct:Q", title="Retention Rate 30D (%)"),
             color=alt.Color("retention_rate_pct:Q", legend=None, scale=alt.Scale(range=[PALETTE["red"], PALETTE["yellow"], PALETTE["green"]])),
-            tooltip=["cohort:N", alt.Tooltip("retention_rate_pct:Q", format=".1f"), alt.Tooltip("members:Q", format=",")],
+            tooltip=[
+                alt.Tooltip("member_segment:N", title="Member Segment"),
+                alt.Tooltip("retention_rate_pct:Q", title="Retention Rate 30D", format=".1f"),
+                alt.Tooltip("members:Q", title="Members", format=","),
+            ],
         )
         st.altair_chart(style_chart(chart, height=310), use_container_width=True)
     with right:
         st.markdown("## New Members by Acquisition")
         acquisition = filtered_life.groupby("acquisition_channel", as_index=False)["new_members_30d"].sum()
+        acquisition["acquisition_channel_label"] = acquisition["acquisition_channel"].map(option_label)
         chart = alt.Chart(acquisition).mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
-            x=alt.X("acquisition_channel:N", title=None, sort="-y"),
-            y=alt.Y("new_members_30d:Q", title="New Members"),
-            color=alt.Color("acquisition_channel:N", legend=None, scale=alt.Scale(range=[PALETTE["green"], PALETTE["cyan"], PALETTE["purple"], PALETTE["yellow"], PALETTE["red"]])),
-            tooltip=["acquisition_channel:N", alt.Tooltip("new_members_30d:Q", format=",")],
+            x=alt.X("acquisition_channel_label:N", title=None, sort="-y", axis=alt.Axis(labelAngle=-35)),
+            y=alt.Y("new_members_30d:Q", title="New Members 30D"),
+            color=alt.Color("acquisition_channel_label:N", legend=None, scale=alt.Scale(range=[PALETTE["green"], PALETTE["cyan"], PALETTE["purple"], PALETTE["yellow"], PALETTE["red"]])),
+            tooltip=[
+                alt.Tooltip("acquisition_channel_label:N", title="Acquisition Channel"),
+                alt.Tooltip("new_members_30d:Q", title="New Members 30D", format=","),
+            ],
         )
         st.altair_chart(style_chart(chart, height=310), use_container_width=True)
 
@@ -745,11 +850,18 @@ with tab_growth:
     continuity = filtered_life.groupby(["plan_type", "gender"], as_index=False).apply(
         lambda d: pd.Series({"subscription_continuity_pct": lifecycle_summary(d)["subscription_continuity_pct"], "members": d["total_members"].sum()})
     )
+    continuity["plan"] = continuity["plan_type"].map(option_label)
+    continuity["gender_label"] = continuity["gender"].map(option_label)
     heatmap = alt.Chart(continuity).mark_rect(cornerRadius=3).encode(
-        x=alt.X("plan_type:N", title="Plan"),
-        y=alt.Y("gender:N", title="Gender"),
-        color=alt.Color("subscription_continuity_pct:Q", title="Continuity %", scale=alt.Scale(range=[PALETTE["red"], PALETTE["yellow"], PALETTE["green"]])),
-        tooltip=["plan_type:N", "gender:N", alt.Tooltip("subscription_continuity_pct:Q", format=".1f"), alt.Tooltip("members:Q", format=",")],
+        x=alt.X("plan:N", title="Plan", axis=alt.Axis(labelAngle=-35)),
+        y=alt.Y("gender_label:N", title="Gender"),
+        color=alt.Color("subscription_continuity_pct:Q", title="Continuity 30D (%)", scale=alt.Scale(range=[PALETTE["red"], PALETTE["yellow"], PALETTE["green"]])),
+        tooltip=[
+            alt.Tooltip("plan:N", title="Plan"),
+            alt.Tooltip("gender_label:N", title="Gender"),
+            alt.Tooltip("subscription_continuity_pct:Q", title="Subscription Continuity 30D", format=".1f"),
+            alt.Tooltip("members:Q", title="Members", format=","),
+        ],
     )
     st.altair_chart(style_chart(heatmap, height=260), use_container_width=True)
 
@@ -772,11 +884,16 @@ with tab_signals:
 
     st.markdown("## Performance Trend")
     trend_base = filtered.melt(id_vars=["event_date"], value_vars=["avg_recovery", "avg_strain", "low_recovery_pct"], var_name="metric", value_name="value")
+    trend_base["metric_label"] = trend_base["metric"].map(metric_label)
     trend = alt.Chart(trend_base).mark_line(point=True, strokeWidth=2.5).encode(
         x=alt.X("event_date:T", title="Date"),
         y=alt.Y("value:Q", title="Score"),
-        color=alt.Color("metric:N", scale=alt.Scale(domain=["avg_recovery", "avg_strain", "low_recovery_pct"], range=[PALETTE["green"], PALETTE["purple"], PALETTE["red"]]), legend=alt.Legend(title=None)),
-        tooltip=["event_date:T", "metric:N", alt.Tooltip("value:Q", format=".1f")],
+        color=alt.Color("metric_label:N", scale=alt.Scale(domain=["Average Recovery", "Average Strain", "Low Recovery Rate"], range=[PALETTE["green"], PALETTE["purple"], PALETTE["red"]]), legend=alt.Legend(title=None)),
+        tooltip=[
+            alt.Tooltip("event_date:T", title="Date"),
+            alt.Tooltip("metric_label:N", title="Metric"),
+            alt.Tooltip("value:Q", title="Value", format=".1f"),
+        ],
     )
     st.altair_chart(style_chart(trend, height=330), use_container_width=True)
 
@@ -787,7 +904,12 @@ with tab_signals:
             x=alt.X("avg_strain:Q", title="Average Strain"),
             y=alt.Y("avg_recovery:Q", title="Average Recovery"),
             color=alt.Color("low_engagement_pct:Q", scale=alt.Scale(range=[PALETTE["green"], PALETTE["yellow"], PALETTE["red"]]), title="Low Engagement %"),
-            tooltip=["event_date:T", alt.Tooltip("avg_recovery:Q", format=".1f"), alt.Tooltip("avg_strain:Q", format=".1f"), alt.Tooltip("low_engagement_pct:Q", format=".1f")],
+            tooltip=[
+                alt.Tooltip("event_date:T", title="Date"),
+                alt.Tooltip("avg_recovery:Q", title="Average Recovery", format=".1f"),
+                alt.Tooltip("avg_strain:Q", title="Average Strain", format=".1f"),
+                alt.Tooltip("low_engagement_pct:Q", title="Low Engagement Rate", format=".1f"),
+            ],
         )
         st.altair_chart(style_chart(scatter, height=320), use_container_width=True)
     with right:
@@ -843,9 +965,9 @@ with tab_experiment:
             ),
         ),
         tooltip=[
-            "event_date:T",
-            "variant_label:N",
-            "algorithm_version:N",
+            alt.Tooltip("event_date:T", title="Date"),
+            alt.Tooltip("variant_label:N", title="Algorithm Group"),
+            alt.Tooltip("algorithm_version:N", title="Algorithm Version"),
             alt.Tooltip("metric_value:Q", title=selected_axis, format=".2f"),
         ],
     )
@@ -870,6 +992,7 @@ with tab_experiment:
         variant_summary = variant_summary[
             ["algorithm_group", "algorithm_version", "active_members", "avg_recovery", "avg_sleep_hours", "avg_app_minutes", "low_recovery_pct"]
         ]
+        variant_summary = variant_summary.rename(columns={column: metric_label(column) for column in variant_summary.columns})
         st.dataframe(variant_summary, use_container_width=True, hide_index=True)
     with right:
         st.markdown(
@@ -905,14 +1028,27 @@ with tab_health:
 
     st.markdown("## Modeled Tables")
     table_counts = query("select model_name as table_name, model_type, grain, row_count from model_inventory order by row_count desc")
+    table_counts["table_label"] = table_counts["table_name"].map(option_label)
+    table_counts["model_type_label"] = table_counts["model_type"].map(option_label)
     bars = alt.Chart(table_counts).mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
-        x=alt.X("table_name:N", title=None, sort="-y"),
+        x=alt.X("table_label:N", title=None, sort="-y", axis=alt.Axis(labelAngle=-35)),
         y=alt.Y("row_count:Q", title="Rows"),
-        color=alt.Color("model_type:N", legend=alt.Legend(title=None)),
-        tooltip=["table_name:N", "model_type:N", "grain:N", alt.Tooltip("row_count:Q", format=",")],
+        color=alt.Color("model_type_label:N", legend=alt.Legend(title=None)),
+        tooltip=[
+            alt.Tooltip("table_label:N", title="Table"),
+            alt.Tooltip("model_type_label:N", title="Model Type"),
+            alt.Tooltip("grain:N", title="Grain"),
+            alt.Tooltip("row_count:Q", title="Rows", format=","),
+        ],
     )
     st.altair_chart(style_chart(bars, height=320), use_container_width=True)
-    st.dataframe(table_counts, use_container_width=True, hide_index=True)
+    st.dataframe(
+        table_counts[["table_label", "model_type_label", "grain", "row_count"]].rename(
+            columns={"table_label": "Table", "model_type_label": "Model Type", "grain": "Grain", "row_count": "Rows"}
+        ),
+        use_container_width=True,
+        hide_index=True,
+    )
 
 with tab_dictionary:
     dictionary = query("select * from metric_dictionary order by domain, metric_name")
@@ -920,7 +1056,20 @@ with tab_dictionary:
     selected_domain = st.selectbox("Metric domain", ["All"] + sorted(dictionary["domain"].unique()))
     if selected_domain != "All":
         dictionary = dictionary[dictionary["domain"] == selected_domain]
-    st.dataframe(dictionary, use_container_width=True, hide_index=True)
+    dictionary_display = dictionary.copy()
+    dictionary_display["metric_name"] = dictionary_display["metric_name"].map(metric_label)
+    st.dataframe(
+        dictionary_display.rename(
+            columns={
+                "metric_name": "Metric",
+                "definition": "Definition",
+                "source_logic": "Source Logic",
+                "domain": "Domain",
+            }
+        ),
+        use_container_width=True,
+        hide_index=True,
+    )
     st.markdown(
         """
 <div class="panel">
@@ -937,16 +1086,7 @@ with tab_dictionary:
 
 with tab_assistant:
     st.markdown("## Governed Insights Assistant")
-    st.caption("Answers are grounded in curated analytical functions over modeled tables. Optional local Ollama mode only interprets grounded results.")
-    st.caption("Local LLM mode uses Ollama's local HTTP API. It does not make paid OpenAI API calls.")
-    ollama_ok, ollama_message = check_ollama_status()
-    use_llm = st.toggle("Use local Ollama interpretation", value=False, help="Runs against local Ollama on this machine. No paid OpenAI API calls are made.")
-    if use_llm:
-        if ollama_ok:
-            st.success(f"{ollama_message} Token usage is displayed when returned by the local server; estimated cost is $0.00.")
-        else:
-            st.warning(ollama_message)
-            st.code("brew install ollama\nollama pull llama3.2\nollama serve", language="bash")
+    st.caption("Ask natural-language questions. The assistant routes each question to governed analytical functions, so answers stay accurate without external API calls or usage limits.")
     suggestions = [
         "How many new members joined in the last 30 days?",
         "What is the retention rate?",
@@ -955,34 +1095,53 @@ with tab_assistant:
         "Break down members by gender.",
         "Summarize the current member segment.",
     ]
+    if "assistant_messages" not in st.session_state:
+        st.session_state["assistant_messages"] = []
+
     cols = st.columns(2)
     for idx, suggestion in enumerate(suggestions):
         if cols[idx % 2].button(suggestion, use_container_width=True):
             st.session_state["assistant_prompt"] = suggestion
-    prompt = st.chat_input("Ask about member growth, retention, subscription continuity, or performance signals...")
+
+    if st.button("Clear assistant history", use_container_width=False):
+        st.session_state["assistant_messages"] = []
+        st.rerun()
+
+    for message in st.session_state["assistant_messages"]:
+        with st.chat_message(message["role"]):
+            st.write(message["content"])
+            if message.get("usage"):
+                usage = message["usage"]
+                with st.expander("Analysis trace", expanded=False):
+                    c1, c2, c3, c4 = st.columns(4)
+                    c1.metric("Tool", option_label(usage["selected_tool"]))
+                    c2.metric("Estimated tokens", f"{usage['total_tokens_estimated']:,}")
+                    c3.metric("Rows considered", f"{usage['rows_considered']:,}")
+                    c4.metric("Latency", f"{usage['latency_s']:.3f}s")
+                    st.json(usage)
+
+    prompt = st.chat_input("Ask about member growth, retention, subscription continuity, experiments, platform health, or metric definitions...")
     prompt = prompt or st.session_state.pop("assistant_prompt", None)
     if prompt:
+        st.session_state["assistant_messages"].append({"role": "user", "content": prompt})
         with st.chat_message("user"):
             st.write(prompt)
         with st.chat_message("assistant"):
-            grounded = experiment_answer(prompt, experiment_summary) if "experiment" in prompt.lower() or "algorithm" in prompt.lower() else assistant_answer(prompt, filtered_life, filtered_days)
-            if use_llm and ollama_ok:
-                try:
-                    answer, metadata = llm_interpretation(
-                        prompt,
-                        grounded,
-                        {
-                            "filters": {"cohort": selected_cohort, "gender": selected_gender, "plan": selected_plan},
-                            "mode": "governed_metric_interpretation",
-                        },
-                    )
-                    st.write(answer)
-                    with st.expander("LLM usage", expanded=False):
-                        st.json(metadata)
-                except Exception as exc:
-                    st.warning(f"Local LLM became unavailable. Showing governed answer instead. Detail: {exc}")
-                    st.write(grounded)
-            else:
-                if use_llm and not ollama_ok:
-                    st.info("Using the governed deterministic answer until local Ollama is available.")
-                st.write(grounded)
+            answer, metadata = governed_assistant_response(
+                prompt,
+                filtered_life,
+                filtered_days,
+                experiment_summary,
+                checks,
+                latest_run,
+                query("select * from metric_dictionary order by domain, metric_name"),
+            )
+            st.write(answer)
+            with st.expander("Analysis trace", expanded=False):
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("Tool", option_label(metadata["selected_tool"]))
+                c2.metric("Estimated tokens", f"{metadata['total_tokens_estimated']:,}")
+                c3.metric("Rows considered", f"{metadata['rows_considered']:,}")
+                c4.metric("Latency", f"{metadata['latency_s']:.3f}s")
+                st.json(metadata)
+        st.session_state["assistant_messages"].append({"role": "assistant", "content": answer, "usage": metadata})

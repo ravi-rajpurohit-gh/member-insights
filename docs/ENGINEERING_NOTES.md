@@ -38,7 +38,7 @@ The "AI-assisted insight" panel is deterministic by design. It summarizes metric
 
 ### Governed Insights Assistant
 
-The assistant is function-backed rather than free-form. It answers common stakeholder questions using curated metrics and modeled tables. It also has an optional local LLM interpretation mode powered by Ollama's local HTTP API. The model only receives the grounded answer and context; it does not execute SQL or invent metrics. No paid hosted LLM API is required.
+The assistant is function-backed rather than free-form. It answers common stakeholder questions using curated metrics and modeled tables, then displays an analysis trace with the selected analytical function, estimated tokens, rows considered, latency, and zero API cost. This avoids hosted API limits and local model setup while still demonstrating the production pattern: natural language routed to governed tools instead of arbitrary SQL or invented metrics.
 
 LangChain is intentionally not included yet. The current assistant needs a small, inspectable tool boundary rather than a full orchestration framework. If the assistant grows to multiple retrieval sources, memory, evaluation traces, or provider routing, LangChain or LangGraph would become more useful.
 
@@ -59,8 +59,8 @@ The Streamlit app uses a neutral health-and-performance analytics visual languag
 | SQL model file | dbt model DAG |
 | Python quality checks | dbt tests, Great Expectations, warehouse assertions |
 | Streamlit dashboard | Internal analytics app, BI dashboard, or product analytics surface |
-| Deterministic AI copy | Approved LLM over governed metric marts |
-| Optional Ollama interpretation | Low-cost local LLM summarization over grounded metrics |
+| Governed assistant router | Approved AI workflow over governed metric marts |
+| Analysis trace | Token, latency, source, and tool telemetry |
 | GitHub Actions workflow | Scheduled availability checks for hosted Streamlit apps |
 
 ## Review Checklist
@@ -70,5 +70,5 @@ The Streamlit app uses a neutral health-and-performance analytics visual languag
 - Run app: `streamlit run app.py`
 - Confirm the dashboard tabs render: Growth & Retention, Performance Signals, Experimentation, Data Platform Health, Metric Dictionary, Insights Assistant
 - Confirm Insights Assistant answers from current modeled metrics
-- Optionally test local LLM interpretation with `ollama serve`
+- Confirm assistant trace shows selected tool, estimated tokens, rows considered, latency, and zero API cost
 - Confirm all quality checks pass before sharing or deploying

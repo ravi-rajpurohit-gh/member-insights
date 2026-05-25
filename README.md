@@ -36,7 +36,7 @@ The app has five views:
 - **Experimentation:** algorithm-release comparison for baseline vs release-candidate groups, recovery lift, sleep lift, engagement lift, and guardrail movement.
 - **Data Platform Health:** pipeline status, table row counts, freshness, model inventory, and quality-check pass rate.
 - **Metric Dictionary:** governed definitions and source logic for the metrics shown in the dashboard.
-- **Insights Assistant:** governed Q&A over curated analytical functions for growth, retention, subscription continuity, segmentation, experimentation, and performance signals, with optional local LLM interpretation.
+- **Insights Assistant:** governed natural-language Q&A over curated analytical functions for growth, retention, subscription continuity, segmentation, experimentation, platform health, metric definitions, and performance signals.
 
 The underlying model covers common analytical table patterns:
 
@@ -80,8 +80,7 @@ Mirrors a production environment with:
 - **dbt:** model DAG, tests, documentation, metric contracts, and CI checks.
 - **AWS:** S3 landing zones, Glue catalog, Lambda/Step Functions for lightweight workflows, and CloudWatch for logs and alerts.
 - **Observability tooling:** freshness, schema drift, row-count anomalies, failed checks, and metric SLAs.
-- **Approved LLM tooling:** natural-language explanations over curated aggregate tables and documented metric definitions.
-- **Local LLM option:** Ollama through its local HTTP API for low-cost interpretation of grounded analytical results.
+- **Approved AI tooling:** natural-language explanations over curated aggregate tables and documented metric definitions, with function routing before any generative interpretation.
 - **GitHub Actions keep-alive:** scheduled app wake-up checks for Streamlit Community Cloud deployments.
 
 ## Architecture
@@ -131,15 +130,7 @@ python tests/run_quality_checks.py
 streamlit run app.py
 ```
 
-Optional local LLM mode for the Insights Assistant:
-
-```bash
-brew install ollama
-ollama pull llama3.2
-ollama serve
-```
-
-The app calls Ollama's local HTTP API directly. It does not call OpenAI's paid API.
+The Insights Assistant does not require hosted APIs, API keys, or local model services. It routes natural-language prompts to governed analytical functions and displays an analysis trace with selected tool, estimated tokens, rows considered, latency, and API cost.
 
 ## Quality Checks
 
@@ -163,7 +154,7 @@ The project includes checks for:
 1. "I built this as a small version of a member-insights platform: raw wearable and app events becoming reliable product analytics."
 2. "The model starts with immutable event data, joins member dimensions, then creates member-day facts, cohort aggregates, and lifecycle marts."
 3. "The dashboard answers growth, retention, subscription continuity, experimentation, recovery, sleep, strain, engagement, and platform-health questions from governed tables."
-4. "The assistant is deliberately governed. It answers from curated analytical functions and can optionally use a local LLM only to interpret grounded results."
+4. "The assistant is deliberately governed. It routes natural-language prompts to curated analytical functions, shows its analysis trace, and avoids external API limits."
 5. "In production I would move this to Kafka/Spark/Snowflake/dbt, add orchestration and observability, and treat data quality and metric governance as part of the product experience."
 
 ## What This Demonstrates About My Approach
