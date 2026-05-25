@@ -1,11 +1,11 @@
-from __future__ import annotations
-
-"""Streamlit interface for the Member Insights Lakehouse demo.
+"""Streamlit interface for the Member Insights Lakehouse application.
 
 The app intentionally keeps business-facing member insights and data-platform
 health in the same surface. That mirrors how production data products need to
 serve both analytics consumers and the engineers responsible for metric trust.
 """
+
+from __future__ import annotations
 
 import subprocess
 import sys
@@ -60,11 +60,26 @@ html, body, [class*="css"], .stMarkdown, .stApp {{
     padding-bottom: 3rem;
 }}
 
-#MainMenu, footer, .stDeployButton, [data-testid="stDeployButton"],
-[data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"] {{
+#MainMenu, footer {{
     visibility: hidden;
-    height: 0;
-    position: fixed;
+}}
+
+[data-testid="collapsedControl"] {{
+    visibility: visible !important;
+    display: flex !important;
+    opacity: 1 !important;
+    position: fixed !important;
+    top: 0.85rem !important;
+    left: 0.85rem !important;
+    z-index: 999999 !important;
+}}
+
+[data-testid="collapsedControl"] button {{
+    background: #111213 !important;
+    border: 1px solid #26282b !important;
+    border-radius: 6px !important;
+    color: #f4f4f1 !important;
+    box-shadow: 0 0 18px rgba(25,229,140,0.10) !important;
 }}
 [data-testid="stHeader"] {{ background: transparent; }}
 
@@ -451,7 +466,7 @@ with st.sidebar:
 <div class="sidebar-brand">
   <div class="sidebar-mark">MEMBER INSIGHTS</div>
   <div class="sidebar-copy">
-    Member insights lakehouse for synthetic recovery, sleep, strain, engagement, and platform-health analytics.
+    Member insights lakehouse for recovery, sleep, strain, engagement, and platform-health analytics.
   </div>
 </div>
 """,
@@ -488,11 +503,11 @@ st.markdown(
     f"""
 <div class="mi-header">
   <div>
-    <div class="mi-kicker">Member Insights · Synthetic Data</div>
+    <div class="mi-kicker">Member Insights Platform</div>
     <div class="mi-title">Performance Signals Command Center</div>
     <div class="mi-subtitle">
-      Cohort-level recovery, sleep, strain, engagement, and data-platform health modeled from wearable and app events.
-      Built to demonstrate trusted metrics, quality gates, observability, and governed AI explanations.
+      Cohort-level recovery, sleep, strain, engagement, and data-platform health modeled from wearable and app events
+      with trusted metrics, quality gates, observability, and governed AI explanations.
     </div>
   </div>
   <div class="header-status">

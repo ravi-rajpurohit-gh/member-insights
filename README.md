@@ -1,6 +1,6 @@
 # Member Insights Lakehouse
 
-A compact, production-minded proof of concept for turning synthetic wearable and app events into trusted member insights. The project demonstrates how a data engineering team can model high-volume behavioral and physiological signals into reliable metrics for product analytics, experimentation, member insights, and AI-assisted workflows.
+A compact, production-minded analytics application for turning synthetic wearable and app events into trusted member insights. The project demonstrates how a data engineering team can model high-volume behavioral and physiological signals into reliable metrics for product analytics, experimentation, member insights, and AI-assisted workflows.
 
 All data is synthetic. This project does not use or imply access to any private company, product, or member data.
 
@@ -20,7 +20,7 @@ The goal is to show that a proof of concept can be built quickly while still ref
 
 ## Who It Is Built For
 
-This demo is built for the kinds of teams that need to make member behavior understandable and actionable:
+This application is built for the kinds of teams that need to make member behavior understandable and actionable:
 
 - **Data engineering teams** building reliable ELT pipelines, metric marts, and platform observability.
 - **Analytics and product teams** measuring recovery, sleep, strain, engagement, cohort behavior, and experimentation outcomes.
@@ -63,7 +63,7 @@ Built locally with:
 - **Python:** synthetic data generation, orchestration script, and quality checks.
 - **DuckDB:** local analytical warehouse for fast iteration.
 - **SQL:** dbt-style transformations and table modeling.
-- **Streamlit:** interactive dashboard and demo surface.
+- **Streamlit:** interactive dashboard and application surface.
 - **Altair/Pandas:** visualizations and lightweight analytical processing.
 
 Mirrors a production environment with:
