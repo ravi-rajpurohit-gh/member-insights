@@ -1,8 +1,8 @@
 # Member Insights Lakehouse
 
-A compact, production-minded analytics application for turning synthetic wearable and app events into trusted member insights. The project demonstrates how a data engineering team can model high-volume behavioral and physiological signals into reliable metrics for product analytics, experimentation, member insights, and AI-assisted workflows.
+A compact, production-minded analytics application for turning generated privacy-safe wearable and app events into trusted member insights. The project shows how a data engineering team can model high-volume behavioral and physiological signals into reliable metrics for product analytics, experimentation, member insights, and AI-assisted workflows.
 
-All data is synthetic. This project does not use or imply access to any private company, product, or member data.
+All data is generated for privacy-safe development. This project does not use or imply access to any private company, product, or member data.
 
 ## Vision
 
@@ -16,7 +16,7 @@ The vision for this project is a small but realistic member-insights platform:
 - expose governed metric definitions,
 - and use AI only on trusted aggregates and documented business logic.
 
-The goal is to show that a proof of concept can be built quickly while still reflecting production-grade habits: clear table grains, validation, observability, metric governance, and privacy-aware AI boundaries.
+The goal is to show how a compact analytics application can still reflect production-grade habits: clear table grains, validation, observability, metric governance, and privacy-aware AI boundaries.
 
 ## Who It Is Built For
 
@@ -66,7 +66,7 @@ This is intentionally compact, but the design choices reflect how the same syste
 
 Built locally with:
 
-- **Python:** synthetic data generation, orchestration script, and quality checks.
+- **Python:** privacy-safe data generation, orchestration script, and quality checks.
 - **DuckDB:** local analytical warehouse for fast iteration.
 - **SQL:** dbt-style transformations and table modeling.
 - **Streamlit:** interactive dashboard and application surface.
@@ -123,7 +123,7 @@ member-insights/
   data/
 ```
 
-Engineering design notes live in [docs/ENGINEERING_NOTES.md](docs/ENGINEERING_NOTES.md), and release history is tracked in [CHANGELOG.md](CHANGELOG.md).
+For a portfolio-style project narrative, see [docs/CASE_STUDY.md](docs/CASE_STUDY.md). Engineering design notes live in [docs/ENGINEERING_NOTES.md](docs/ENGINEERING_NOTES.md), and release history is tracked in [CHANGELOG.md](CHANGELOG.md).
 
 ## Run Locally
 
@@ -163,7 +163,7 @@ The project includes checks for:
 
 ## What This Demonstrates About My Approach
 
-- I can translate role and business context into a working proof of concept quickly.
+- I can translate role and business context into a working analytics product quickly.
 - I model data around business questions, not just technical pipelines.
 - I care about grain, quality, observability, documentation, and production migration paths.
 - I use AI as an accelerator while preserving governance, explainability, and data boundaries.

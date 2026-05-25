@@ -4,9 +4,9 @@ Last updated: 2026-05-25
 
 ## Purpose
 
-This project is a compact data product proof of concept: synthetic wearable and app events are transformed into member insights, platform health signals, and governed metric definitions.
+This project is a compact data product reference implementation: generated wearable and app events are transformed into member insights, platform health signals, and governed metric definitions.
 
-It is intentionally small enough to explain in an interview, but the structure mirrors production habits:
+It is intentionally compact, but the structure mirrors production habits:
 
 - immutable event data,
 - explicit table grains,
@@ -20,13 +20,13 @@ It is intentionally small enough to explain in an interview, but the structure m
 
 ## Design Decisions
 
-### Synthetic Data Only
+### Privacy-Safe Generated Data
 
 The project uses generated data to avoid any implication of access to private company, product, or member data. The generator focuses on analytical shape: cohorts, sleep, recovery, strain, app engagement, workouts, and member-day behavior.
 
 ### DuckDB as Local Warehouse
 
-DuckDB keeps the proof of concept self-contained and fast to run locally. In production, the same modeling pattern maps to Snowflake with dbt managing transformations, tests, docs, and CI.
+DuckDB keeps the application self-contained and fast to run locally. In production, the same modeling pattern maps to Snowflake with dbt managing transformations, tests, docs, and CI.
 
 ### dbt-Style SQL
 
@@ -38,7 +38,7 @@ The "AI-assisted insight" panel is deterministic by design. It summarizes metric
 
 ### Governed Insights Assistant
 
-The assistant is function-backed rather than free-form. It answers common stakeholder questions using curated metrics and modeled tables, then displays an analysis trace with the selected analytical function, estimated tokens, rows considered, latency, and zero API cost. This avoids hosted API limits and local model setup while still demonstrating the production pattern: natural language routed to governed tools instead of arbitrary SQL or invented metrics.
+The assistant is function-backed rather than free-form. It answers common stakeholder questions using curated metrics and modeled tables, then displays an analysis trace with the selected analytical function, estimated tokens, rows considered, latency, and zero API cost. This avoids hosted API limits and local model setup while showing the production pattern: natural language routed to governed tools instead of arbitrary SQL or invented metrics.
 
 LangChain is intentionally not included yet. The current assistant needs a small, inspectable tool boundary rather than a full orchestration framework. If the assistant grows to multiple retrieval sources, memory, evaluation traces, or provider routing, LangChain or LangGraph would become more useful.
 
@@ -52,7 +52,7 @@ The Streamlit app uses a neutral health-and-performance analytics visual languag
 
 ### App Organization
 
-The app currently uses one Streamlit page with six tabs. That is intentional for the interview use case: the hiring manager can understand the full data product in one surface without navigating across pages. The tabs map to natural stakeholder workflows: growth, performance, experimentation, platform health, metric governance, and natural-language analysis.
+The app currently uses one Streamlit page with six tabs. That is intentional for the product experience: users can understand the full data product in one surface without navigating across pages. The tabs map to natural stakeholder workflows: growth, performance, experimentation, platform health, metric governance, and natural-language analysis.
 
 The implementation now keeps `app.py` focused on page flow and moves reusable logic into `src/` modules:
 
@@ -60,7 +60,7 @@ The implementation now keeps `app.py` focused on page flow and moves reusable lo
 - `src/metrics.py` for governed calculations,
 - `src/ui.py` for shared CSS, cards, labels, and charts.
 
-A multi-page Streamlit structure would make sense if this becomes a larger portfolio product or a maintained internal tool. A practical future page structure would be `pages/1_Growth_Retention.py`, `pages/2_Performance_Signals.py`, `pages/3_Experimentation.py`, `pages/4_Platform_Health.py`, `pages/5_Metric_Dictionary.py`, and `pages/6_Insights_Assistant.py`. For now, the single-page tabbed app is the better demo shape because shared state, filters, styling, and chart conventions stay easy to follow.
+A multi-page Streamlit structure would make sense if this becomes a larger portfolio product or a maintained internal tool. A practical future page structure would be `pages/1_Growth_Retention.py`, `pages/2_Performance_Signals.py`, `pages/3_Experimentation.py`, `pages/4_Platform_Health.py`, `pages/5_Metric_Dictionary.py`, and `pages/6_Insights_Assistant.py`. For now, the single-page tabbed app is the better product shape because shared state, filters, styling, and chart conventions stay easy to follow.
 
 ## Production Mapping
 
