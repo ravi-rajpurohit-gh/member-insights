@@ -33,9 +33,10 @@ The app has five views:
 
 - **Growth & Retention:** new members, retention rate, subscription continuity, acquisition channels, and segmentation by plan/gender/cohort.
 - **Performance Signals:** cohort trends for recovery, sleep, strain, engagement, low-recovery risk, and a deterministic AI-style explanation of metric movement.
+- **Experimentation:** algorithm-release comparison for control/treatment variants, recovery lift, sleep lift, engagement lift, and guardrail movement.
 - **Data Platform Health:** pipeline status, table row counts, freshness, model inventory, and quality-check pass rate.
 - **Metric Dictionary:** governed definitions and source logic for the metrics shown in the dashboard.
-- **Insights Assistant:** governed Q&A over curated analytical functions for growth, retention, subscription continuity, segmentation, and performance signals.
+- **Insights Assistant:** governed Q&A over curated analytical functions for growth, retention, subscription continuity, segmentation, experimentation, and performance signals, with optional local LLM interpretation.
 
 The underlying model covers common analytical table patterns:
 
@@ -44,6 +45,7 @@ The underlying model covers common analytical table patterns:
 - **Fact table:** `fct_member_day`, one row per member per day for analytics and ML features.
 - **Aggregate table:** `agg_cohort_daily`, cohort-level trusted metrics for dashboards and AI explanations.
 - **Lifecycle aggregate:** `agg_member_lifecycle`, member growth, retention, continuity, and segmentation metrics.
+- **Experiment aggregate:** `agg_experiment_daily` and `agg_experiment_summary`, algorithm-release variant outcomes and lift metrics.
 - **Audit table:** `pipeline_run_log`, run status and modeled table counts.
 - **Model inventory:** `model_inventory`, table grains, types, and row counts for platform health.
 - **Metric dictionary:** `metric_dictionary`, definitions and source logic for governed analytics.
@@ -79,6 +81,7 @@ Mirrors a production environment with:
 - **AWS:** S3 landing zones, Glue catalog, Lambda/Step Functions for lightweight workflows, and CloudWatch for logs and alerts.
 - **Observability tooling:** freshness, schema drift, row-count anomalies, failed checks, and metric SLAs.
 - **Approved LLM tooling:** natural-language explanations over curated aggregate tables and documented metric definitions.
+- **Local LLM option:** Ollama + OpenAI-compatible SDK for low-cost interpretation of grounded analytical results.
 - **GitHub Actions keep-alive:** scheduled app wake-up checks for Streamlit Community Cloud deployments.
 
 ## Architecture
@@ -93,7 +96,9 @@ flowchart LR
     D --> L["agg_member_lifecycle"]
     F --> G["Performance Signals"]
     L --> R["Growth & Retention"]
-    F --> H["Insights Assistant"]
+    E --> X["Experimentation"]
+    X --> H["Insights Assistant"]
+    F --> H
     L --> H
     I["Quality checks"] --> P["Data Platform Health"]
     J["metric_dictionary"] --> H
@@ -126,6 +131,14 @@ python tests/run_quality_checks.py
 streamlit run app.py
 ```
 
+Optional local LLM mode for the Insights Assistant:
+
+```bash
+brew install ollama
+ollama pull llama3.2
+ollama serve
+```
+
 ## Quality Checks
 
 The project includes checks for:
@@ -138,14 +151,17 @@ The project includes checks for:
 - recent data freshness,
 - accepted member status and gender values,
 - lifecycle rate bounds,
+- experiment assignment uniqueness,
+- accepted experiment variants,
+- experiment summary population,
 - and model inventory population.
 
 ## 90-Second Walkthrough
 
 1. "I built this as a small version of a member-insights platform: raw wearable and app events becoming reliable product analytics."
 2. "The model starts with immutable event data, joins member dimensions, then creates member-day facts, cohort aggregates, and lifecycle marts."
-3. "The dashboard answers growth, retention, subscription continuity, recovery, sleep, strain, engagement, and platform-health questions from governed tables."
-4. "The assistant is deliberately governed. It answers from curated analytical functions and metric definitions instead of querying raw member data freely."
+3. "The dashboard answers growth, retention, subscription continuity, experimentation, recovery, sleep, strain, engagement, and platform-health questions from governed tables."
+4. "The assistant is deliberately governed. It answers from curated analytical functions and can optionally use a local LLM only to interpret grounded results."
 5. "In production I would move this to Kafka/Spark/Snowflake/dbt, add orchestration and observability, and treat data quality and metric governance as part of the product experience."
 
 ## What This Demonstrates About My Approach

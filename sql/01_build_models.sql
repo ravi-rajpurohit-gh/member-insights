@@ -27,6 +27,17 @@ select
     age_band
 from read_csv_auto('data/members.csv');
 
+create or replace table dim_experiment_assignments as
+select
+    experiment_id,
+    experiment_name,
+    member_id,
+    variant,
+    algorithm_version,
+    assigned_at::date as assigned_at,
+    rollout_channel
+from read_csv_auto('data/experiment_assignments.csv');
+
 create or replace table fct_member_day as
 select
     e.member_id,
@@ -38,6 +49,11 @@ select
     any_value(m.acquisition_channel) as acquisition_channel,
     any_value(m.primary_goal) as primary_goal,
     any_value(m.age_band) as age_band,
+    any_value(coalesce(x.experiment_id, 'not_assigned')) as experiment_id,
+    any_value(coalesce(x.experiment_name, 'Not Assigned')) as experiment_name,
+    any_value(coalesce(x.variant, 'not_assigned')) as experiment_variant,
+    any_value(coalesce(x.algorithm_version, 'baseline')) as algorithm_version,
+    any_value(coalesce(x.rollout_channel, 'none')) as rollout_channel,
     round(avg(e.heart_rate), 1) as avg_heart_rate,
     round(max(e.strain), 1) as daily_strain,
     max(e.sleep_minutes) as sleep_minutes,
@@ -47,6 +63,9 @@ select
     count(*) as event_count
 from stg_member_events e
 join dim_members m on e.member_id = m.member_id
+left join dim_experiment_assignments x
+    on e.member_id = x.member_id
+    and e.event_date >= x.assigned_at
 group by 1, 2;
 
 create or replace table agg_cohort_daily as
@@ -105,12 +124,82 @@ select
 from member_base
 group by 1, 2, 3, 4, 5;
 
+create or replace table agg_experiment_daily as
+select
+    event_date,
+    experiment_id,
+    experiment_name,
+    experiment_variant,
+    algorithm_version,
+    count(distinct member_id) as active_members,
+    round(avg(recovery_score), 1) as avg_recovery,
+    round(avg(sleep_minutes) / 60, 2) as avg_sleep_hours,
+    round(avg(daily_strain), 1) as avg_strain,
+    round(avg(app_session_minutes), 1) as avg_app_minutes,
+    round(sum(case when recovery_score < 45 then 1 else 0 end) * 100.0 / count(*), 1) as low_recovery_pct
+from fct_member_day
+where experiment_variant in ('control', 'treatment')
+group by 1, 2, 3, 4, 5;
+
+create or replace table agg_experiment_summary as
+with variant_metrics as (
+    select
+        experiment_id,
+        experiment_name,
+        experiment_variant,
+        algorithm_version,
+        count(distinct member_id) as members,
+        round(avg(recovery_score), 2) as avg_recovery,
+        round(avg(sleep_minutes) / 60, 2) as avg_sleep_hours,
+        round(avg(daily_strain), 2) as avg_strain,
+        round(avg(app_session_minutes), 2) as avg_app_minutes,
+        round(sum(case when recovery_score < 45 then 1 else 0 end) * 100.0 / count(*), 2) as low_recovery_pct
+    from fct_member_day
+    where experiment_variant in ('control', 'treatment')
+    group by 1, 2, 3, 4
+),
+pivoted as (
+    select
+        experiment_id,
+        experiment_name,
+        max(case when experiment_variant = 'control' then avg_recovery end) as control_recovery,
+        max(case when experiment_variant = 'treatment' then avg_recovery end) as treatment_recovery,
+        max(case when experiment_variant = 'control' then avg_sleep_hours end) as control_sleep_hours,
+        max(case when experiment_variant = 'treatment' then avg_sleep_hours end) as treatment_sleep_hours,
+        max(case when experiment_variant = 'control' then avg_app_minutes end) as control_app_minutes,
+        max(case when experiment_variant = 'treatment' then avg_app_minutes end) as treatment_app_minutes,
+        max(case when experiment_variant = 'control' then low_recovery_pct end) as control_low_recovery_pct,
+        max(case when experiment_variant = 'treatment' then low_recovery_pct end) as treatment_low_recovery_pct
+    from variant_metrics
+    group by 1, 2
+)
+select
+    experiment_id,
+    experiment_name,
+    control_recovery,
+    treatment_recovery,
+    round(treatment_recovery - control_recovery, 2) as recovery_lift,
+    control_sleep_hours,
+    treatment_sleep_hours,
+    round(treatment_sleep_hours - control_sleep_hours, 2) as sleep_hours_lift,
+    control_app_minutes,
+    treatment_app_minutes,
+    round(treatment_app_minutes - control_app_minutes, 2) as app_minutes_lift,
+    control_low_recovery_pct,
+    treatment_low_recovery_pct,
+    round(treatment_low_recovery_pct - control_low_recovery_pct, 2) as low_recovery_pct_delta
+from pivoted;
+
 create or replace table metric_dictionary as
 select * from (
     values
     ('new_members_30d', 'Members whose signup date occurred in the last 30 days.', 'dim_members.signup_date >= current_date - interval 30 day', 'Growth'),
     ('retention_rate_pct', 'Percent of retention-eligible members active in the last 30 days.', 'active_members_30d / retention_eligible_members', 'Retention'),
     ('subscription_continuity_pct', 'Percent of members with recent activity, grouped by plan and cohort.', 'active_members_30d / total_members', 'Subscription'),
+    ('recovery_lift', 'Treatment recovery minus control recovery for an algorithm release experiment.', 'agg_experiment_summary.treatment_recovery - control_recovery', 'Experimentation'),
+    ('sleep_hours_lift', 'Treatment sleep hours minus control sleep hours for an algorithm release experiment.', 'agg_experiment_summary.treatment_sleep_hours - control_sleep_hours', 'Experimentation'),
+    ('app_minutes_lift', 'Treatment app engagement minus control app engagement for an algorithm release experiment.', 'agg_experiment_summary.treatment_app_minutes - control_app_minutes', 'Experimentation'),
+    ('low_recovery_pct_delta', 'Treatment low-recovery rate minus control low-recovery rate; negative is favorable.', 'agg_experiment_summary.treatment_low_recovery_pct - control_low_recovery_pct', 'Experimentation'),
     ('avg_recovery', 'Average daily recovery score by cohort.', 'fct_member_day.recovery_score', 'Member Insights'),
     ('avg_sleep_hours', 'Average sleep duration in hours.', 'fct_member_day.sleep_minutes / 60', 'Member Insights'),
     ('avg_strain', 'Average daily strain score.', 'fct_member_day.daily_strain', 'Member Insights'),
@@ -129,6 +218,7 @@ select
     (select count(*) from fct_member_day) as member_days,
     (select count(*) from agg_cohort_daily) as cohort_days,
     (select count(*) from agg_member_lifecycle) as lifecycle_segments,
+    (select count(*) from agg_experiment_daily) as experiment_days,
     (select round(date_diff('minute', max(event_ts), current_timestamp) / 60.0, 1) from stg_member_events) as freshness_hours;
 
 create or replace table model_inventory as
@@ -136,9 +226,12 @@ select * from (
     values
     ('stg_member_events', 'event', 'one row per wearable/app event', (select count(*) from stg_member_events)),
     ('dim_members', 'dimension', 'one row per member', (select count(*) from dim_members)),
+    ('dim_experiment_assignments', 'dimension', 'one row per experiment assignment', (select count(*) from dim_experiment_assignments)),
     ('fct_member_day', 'fact', 'one row per member per active day', (select count(*) from fct_member_day)),
     ('agg_cohort_daily', 'aggregate', 'one row per cohort per day', (select count(*) from agg_cohort_daily)),
     ('agg_member_lifecycle', 'aggregate', 'one row per lifecycle segment', (select count(*) from agg_member_lifecycle)),
+    ('agg_experiment_daily', 'aggregate', 'one row per experiment variant per day', (select count(*) from agg_experiment_daily)),
+    ('agg_experiment_summary', 'aggregate', 'one row per experiment with control/treatment lift', (select count(*) from agg_experiment_summary)),
     ('metric_dictionary', 'governance', 'one row per governed metric', (select count(*) from metric_dictionary)),
     ('pipeline_run_log', 'audit', 'one row per pipeline build', (select count(*) from pipeline_run_log))
 ) as t(model_name, model_type, grain, row_count);

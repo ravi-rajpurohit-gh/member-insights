@@ -9,6 +9,7 @@ single local warehouse artifact.
 """
 
 import argparse
+from dataclasses import dataclass
 from pathlib import Path
 
 import duckdb
@@ -20,6 +21,19 @@ ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
 DB_PATH = ROOT / "member_insights.duckdb"
 SQL_PATH = ROOT / "sql" / "01_build_models.sql"
+
+
+@dataclass(frozen=True)
+class ExperimentEffect:
+    recovery_shift: float
+    sleep_minutes_shift: int
+    engagement_shift: float
+
+
+EXPERIMENT_EFFECTS = {
+    "control": ExperimentEffect(recovery_shift=0.0, sleep_minutes_shift=0, engagement_shift=0.0),
+    "treatment": ExperimentEffect(recovery_shift=2.4, sleep_minutes_shift=11, engagement_shift=1.2),
+}
 
 
 def build_members(member_count: int, rng: np.random.Generator) -> pd.DataFrame:
@@ -63,7 +77,27 @@ def build_members(member_count: int, rng: np.random.Generator) -> pd.DataFrame:
     )
 
 
-def build_events(members: pd.DataFrame, days: int, rng: np.random.Generator) -> pd.DataFrame:
+def build_experiment_assignments(members: pd.DataFrame, rng: np.random.Generator) -> pd.DataFrame:
+    """Assign active members to a synthetic algorithm-release experiment."""
+    assignment_start = pd.Timestamp.today().normalize() - pd.Timedelta(days=38)
+    eligible = members[members["member_status"] == "active"].copy()
+    variants = rng.choice(["control", "treatment"], len(eligible), p=[0.5, 0.5])
+    offsets = rng.integers(0, 8, len(eligible))
+
+    return pd.DataFrame(
+        {
+            "experiment_id": "recovery_algorithm_release_q2",
+            "experiment_name": "Recovery Algorithm Release Q2",
+            "member_id": eligible["member_id"].to_list(),
+            "variant": variants,
+            "algorithm_version": ["recovery_v1" if v == "control" else "recovery_v2" for v in variants],
+            "assigned_at": assignment_start + pd.to_timedelta(offsets, unit="D"),
+            "rollout_channel": rng.choice(["feature_flag", "gradual_rollout", "internal_holdout"], len(eligible), p=[0.60, 0.32, 0.08]),
+        }
+    )
+
+
+def build_events(members: pd.DataFrame, experiments: pd.DataFrame, days: int, rng: np.random.Generator) -> pd.DataFrame:
     """Create immutable wearable/app events for each member-day."""
     end_date = pd.Timestamp.today().normalize()
     dates = pd.date_range(end=end_date, periods=days, freq="D")
@@ -76,6 +110,10 @@ def build_events(members: pd.DataFrame, days: int, rng: np.random.Generator) -> 
         "athlete": 5,
         "health_optimizer": 1,
     }
+    experiment_lookup = {
+        row.member_id: (pd.Timestamp(row.assigned_at), row.variant)
+        for row in experiments.itertuples(index=False)
+    }
 
     for member in members.itertuples(index=False):
         baseline_recovery = rng.normal(66, 10) + cohort_recovery_shift[member.cohort]
@@ -85,11 +123,15 @@ def build_events(members: pd.DataFrame, days: int, rng: np.random.Generator) -> 
         for date in dates:
             if pd.notna(member.cancellation_date) and date > pd.Timestamp(member.cancellation_date):
                 continue
+            effect = EXPERIMENT_EFFECTS["control"]
+            assigned_at, variant = experiment_lookup.get(member.member_id, (pd.NaT, "control"))
+            if pd.notna(assigned_at) and date >= assigned_at:
+                effect = EXPERIMENT_EFFECTS[variant]
             weekday_training = 1 if date.dayofweek in [0, 2, 4, 5] else 0
             strain = float(np.clip(rng.normal(9 + weekday_training * 2, 3), 1, 21))
-            sleep_minutes = int(np.clip(rng.normal(435 - strain * 3, 55), 240, 610))
-            recovery = int(np.clip(baseline_recovery + (sleep_minutes - 420) / 10 - strain * 1.1 + rng.normal(0, 7), 8, 99))
-            app_minutes = float(np.clip(rng.normal(8 + engagement_bias, 5), 0, 35))
+            sleep_minutes = int(np.clip(rng.normal(435 - strain * 3 + effect.sleep_minutes_shift, 55), 240, 610))
+            recovery = int(np.clip(baseline_recovery + effect.recovery_shift + (sleep_minutes - 420) / 10 - strain * 1.1 + rng.normal(0, 7), 8, 99))
+            app_minutes = float(np.clip(rng.normal(8 + engagement_bias + effect.engagement_shift, 5), 0, 35))
             workout_minutes = int(np.clip(rng.normal(35 + weekday_training * 22, 24), 0, 150))
 
             event_specs = [
@@ -140,9 +182,11 @@ def main() -> None:
     DATA_DIR.mkdir(exist_ok=True)
     rng = np.random.default_rng(args.seed)
     members = build_members(args.members, rng)
-    events = build_events(members, args.days, rng)
+    experiments = build_experiment_assignments(members, rng)
+    events = build_events(members, experiments, args.days, rng)
 
     members.to_csv(DATA_DIR / "members.csv", index=False)
+    experiments.to_csv(DATA_DIR / "experiment_assignments.csv", index=False)
     events.to_csv(DATA_DIR / "member_events.csv", index=False)
     build_warehouse()
 

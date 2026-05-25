@@ -55,7 +55,19 @@ CHECKS = [
     ),
     (
         "model_inventory_populated",
-        "select count(*) >= 7 from model_inventory",
+        "select count(*) >= 10 from model_inventory",
+    ),
+    (
+        "experiment_assignments_unique",
+        "select count(*) = count(distinct member_id || '|' || experiment_id) from dim_experiment_assignments",
+    ),
+    (
+        "experiment_variants_accepted",
+        "select count(*) = 0 from dim_experiment_assignments where variant not in ('control', 'treatment')",
+    ),
+    (
+        "experiment_summary_populated",
+        "select count(*) >= 1 from agg_experiment_summary",
     ),
 ]
 

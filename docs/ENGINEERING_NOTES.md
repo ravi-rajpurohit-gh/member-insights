@@ -13,6 +13,7 @@ It is intentionally small enough to explain in an interview, but the structure m
 - dimensional and fact modeling,
 - aggregate marts for dashboards,
 - lifecycle marts for member growth, retention, and subscription continuity,
+- experimentation marts for algorithm-release control/treatment analysis,
 - quality gates,
 - metric documentation,
 - and AI explanations constrained to trusted data products.
@@ -37,7 +38,11 @@ The "AI-assisted insight" panel is deterministic by design. It summarizes metric
 
 ### Governed Insights Assistant
 
-The assistant is function-backed rather than free-form. It answers common stakeholder questions using curated metrics and modeled tables. This keeps the first version deterministic and deployable without secrets, while leaving a clean path to add OpenAI-compatible tool calling later.
+The assistant is function-backed rather than free-form. It answers common stakeholder questions using curated metrics and modeled tables. It also has an optional local LLM interpretation mode powered by Ollama through the OpenAI-compatible SDK. The model only receives the grounded answer and context; it does not execute SQL or invent metrics.
+
+### Experimentation & Algorithm Releases
+
+The experiment mart models a recovery-algorithm release as a control/treatment comparison. It tracks recovery lift, sleep lift, engagement lift, and low-recovery guardrail movement. This mirrors the kind of analytics internal product and data teams need when validating algorithm updates, feature flags, and phased rollouts.
 
 ### Product-Like UI
 
@@ -53,6 +58,7 @@ The Streamlit app uses a neutral health-and-performance analytics visual languag
 | Python quality checks | dbt tests, Great Expectations, warehouse assertions |
 | Streamlit dashboard | Internal analytics app, BI dashboard, or product analytics surface |
 | Deterministic AI copy | Approved LLM over governed metric marts |
+| Optional Ollama interpretation | Low-cost internal LLM summarization over grounded metrics |
 | GitHub Actions workflow | Scheduled availability checks for hosted Streamlit apps |
 
 ## Review Checklist
@@ -60,6 +66,7 @@ The Streamlit app uses a neutral health-and-performance analytics visual languag
 - Regenerate data: `python generate_synthetic_data.py`
 - Run quality checks: `python tests/run_quality_checks.py`
 - Run app: `streamlit run app.py`
-- Confirm the dashboard tabs render: Growth & Retention, Performance Signals, Data Platform Health, Metric Dictionary, Insights Assistant
+- Confirm the dashboard tabs render: Growth & Retention, Performance Signals, Experimentation, Data Platform Health, Metric Dictionary, Insights Assistant
 - Confirm Insights Assistant answers from current modeled metrics
+- Optionally test local LLM interpretation with `ollama serve`
 - Confirm all quality checks pass before sharing or deploying

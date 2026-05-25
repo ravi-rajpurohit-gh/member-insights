@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import altair as alt
@@ -549,11 +550,56 @@ def assistant_answer(prompt: str, lifecycle: pd.DataFrame, member_days: pd.DataF
     )
 
 
+def experiment_answer(prompt: str, experiment_summary: pd.DataFrame) -> str:
+    summary = experiment_summary.iloc[0]
+    return (
+        f"{summary.experiment_name}: treatment improved recovery by {summary.recovery_lift:+.2f} points, "
+        f"sleep by {summary.sleep_hours_lift:+.2f} hours, and app engagement by {summary.app_minutes_lift:+.2f} minutes. "
+        f"Low-recovery rate changed by {summary.low_recovery_pct_delta:+.2f} percentage points, where negative is favorable."
+    )
+
+
+def llm_interpretation(prompt: str, grounded_answer: str, context: dict[str, object]) -> tuple[str, dict[str, object]]:
+    """Optionally summarize grounded metrics with a local/OpenAI-compatible LLM."""
+    from openai import OpenAI
+
+    client = OpenAI(api_key="ollama", base_url="http://localhost:11434/v1")
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "You are a concise analytics engineer. Use only the provided grounded answer and context. "
+                "Do not invent numbers. Explain the business meaning in 2-3 sentences."
+            ),
+        },
+        {
+            "role": "user",
+            "content": f"Question: {prompt}\nGrounded answer: {grounded_answer}\nContext: {context}",
+        },
+    ]
+    started = time.perf_counter()
+    response = client.chat.completions.create(model="llama3.2", messages=messages)
+    latency = time.perf_counter() - started
+    usage = getattr(response, "usage", None)
+    metadata = {
+        "provider": "local_ollama",
+        "model": "llama3.2",
+        "latency_s": round(latency, 2),
+        "prompt_tokens": getattr(usage, "prompt_tokens", None),
+        "completion_tokens": getattr(usage, "completion_tokens", None),
+        "total_tokens": getattr(usage, "total_tokens", None),
+        "estimated_cost_usd": 0.0,
+    }
+    return response.choices[0].message.content or grounded_answer, metadata
+
+
 st.set_page_config(page_title="Member Insights", layout="wide", initial_sidebar_state="expanded")
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 member_days = query("select * from fct_member_day")
 lifecycle = query("select * from agg_member_lifecycle")
+experiment_daily = query("select * from agg_experiment_daily")
+experiment_summary = query("select * from agg_experiment_summary")
 run_log = query("select * from pipeline_run_log")
 checks = quality_results()
 latest_run = run_log.iloc[-1]
@@ -612,8 +658,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-tab_growth, tab_signals, tab_health, tab_dictionary, tab_assistant = st.tabs(
-    ["Growth & Retention", "Performance Signals", "Data Platform Health", "Metric Dictionary", "Insights Assistant"]
+tab_growth, tab_signals, tab_experiment, tab_health, tab_dictionary, tab_assistant = st.tabs(
+    ["Growth & Retention", "Performance Signals", "Experimentation", "Data Platform Health", "Metric Dictionary", "Insights Assistant"]
 )
 
 with tab_growth:
@@ -712,6 +758,61 @@ with tab_signals:
             unsafe_allow_html=True,
         )
 
+with tab_experiment:
+    summary = experiment_summary.iloc[0]
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        metric_card("Recovery Lift", f"{summary['recovery_lift']:+.2f}", summary["recovery_lift"], min(100, 50 + summary["recovery_lift"] * 10), "REC", score_color(67 + summary["recovery_lift"]))
+    with col2:
+        metric_card("Sleep Lift", f"{summary['sleep_hours_lift']:+.2f}h", summary["sleep_hours_lift"], min(100, 50 + summary["sleep_hours_lift"] * 35), "SLP", PALETTE["cyan"], suffix="h")
+    with col3:
+        metric_card("Engagement Lift", f"{summary['app_minutes_lift']:+.2f}m", summary["app_minutes_lift"], min(100, 50 + summary["app_minutes_lift"] * 10), "APP", PALETTE["purple"], suffix="m")
+    with col4:
+        metric_card("Low Recovery Delta", f"{summary['low_recovery_pct_delta']:+.2f}pp", summary["low_recovery_pct_delta"], max(0, 70 - summary["low_recovery_pct_delta"] * 5), "GRD", score_color(70 - summary["low_recovery_pct_delta"]), suffix="pp", inverse=True)
+
+    st.markdown("## Algorithm Version Trend")
+    experiment_trend = experiment_daily.melt(
+        id_vars=["event_date", "experiment_variant", "algorithm_version"],
+        value_vars=["avg_recovery", "avg_sleep_hours", "avg_app_minutes"],
+        var_name="metric",
+        value_name="value",
+    )
+    trend = alt.Chart(experiment_trend).mark_line(point=True, strokeWidth=2.4).encode(
+        x=alt.X("event_date:T", title="Date"),
+        y=alt.Y("value:Q", title="Metric Value"),
+        color=alt.Color("experiment_variant:N", title="Variant", scale=alt.Scale(range=[PALETTE["muted"], PALETTE["green"]])),
+        strokeDash=alt.StrokeDash("metric:N", title="Metric"),
+        tooltip=["event_date:T", "experiment_variant:N", "algorithm_version:N", "metric:N", alt.Tooltip("value:Q", format=".2f")],
+    )
+    st.altair_chart(style_chart(trend, height=340), use_container_width=True)
+
+    left, right = st.columns([1, 1])
+    with left:
+        st.markdown("## Variant Summary")
+        variant_summary = (
+            experiment_daily.groupby(["experiment_variant", "algorithm_version"], as_index=False)
+            .agg(
+                active_members=("active_members", "max"),
+                avg_recovery=("avg_recovery", "mean"),
+                avg_sleep_hours=("avg_sleep_hours", "mean"),
+                avg_app_minutes=("avg_app_minutes", "mean"),
+                low_recovery_pct=("low_recovery_pct", "mean"),
+            )
+            .round(2)
+        )
+        st.dataframe(variant_summary, use_container_width=True, hide_index=True)
+    with right:
+        st.markdown(
+            f"""
+<div class="panel">
+  <div class="panel-title">Experiment Readout</div>
+  <div class="insight-copy">{experiment_answer('summary', experiment_summary)}</div>
+  <div class="caption-mono">Control = recovery_v1 · Treatment = recovery_v2 · Guardrail = low-recovery rate.</div>
+</div>
+""",
+            unsafe_allow_html=True,
+        )
+
 with tab_health:
     col1, col2, col3, col4 = st.columns(4)
     with col1:
@@ -722,6 +823,11 @@ with tab_health:
         metric_card("Freshness", f"{latest_run['freshness_hours']:.1f}h", 0, max(0, 100 - latest_run["freshness_hours"]), "FR", PALETTE["green"])
     with col4:
         metric_card("Quality Pass Rate", f"{quality_rate:.0f}%", 0, quality_rate, "QA", PALETTE["green"])
+    col5, col6 = st.columns(2)
+    with col5:
+        metric_card("Experiment Days", f"{latest_run['experiment_days']:,}", 0, 100, "EXP", PALETTE["purple"])
+    with col6:
+        metric_card("Modeled Tables", "10", 0, 100, "MDL", PALETTE["cyan"])
 
     checks_display = checks.copy()
     checks_display["status"] = checks_display["passed"].map({True: "PASS", False: "FAIL"})
@@ -762,11 +868,13 @@ with tab_dictionary:
 
 with tab_assistant:
     st.markdown("## Governed Insights Assistant")
-    st.caption("Answers are generated from curated analytical functions over modeled tables. No free-form SQL is executed.")
+    st.caption("Answers are grounded in curated analytical functions over modeled tables. Optional local LLM mode only interprets grounded results.")
+    use_llm = st.toggle("Use local LLM interpretation", value=False, help="Requires Ollama running locally with `llama3.2`. The app falls back to governed deterministic answers if unavailable.")
     suggestions = [
         "How many new members joined in the last 30 days?",
         "What is the retention rate?",
         "What is the subscription continuity by plan?",
+        "Summarize the algorithm release experiment.",
         "Break down members by gender.",
         "Summarize the current member segment.",
     ]
@@ -780,4 +888,22 @@ with tab_assistant:
         with st.chat_message("user"):
             st.write(prompt)
         with st.chat_message("assistant"):
-            st.write(assistant_answer(prompt, filtered_life, filtered_days))
+            grounded = experiment_answer(prompt, experiment_summary) if "experiment" in prompt.lower() or "algorithm" in prompt.lower() else assistant_answer(prompt, filtered_life, filtered_days)
+            if use_llm:
+                try:
+                    answer, metadata = llm_interpretation(
+                        prompt,
+                        grounded,
+                        {
+                            "filters": {"cohort": selected_cohort, "gender": selected_gender, "plan": selected_plan},
+                            "mode": "governed_metric_interpretation",
+                        },
+                    )
+                    st.write(answer)
+                    with st.expander("LLM usage", expanded=False):
+                        st.json(metadata)
+                except Exception as exc:
+                    st.warning(f"Local LLM unavailable. Showing governed answer instead. Detail: {exc}")
+                    st.write(grounded)
+            else:
+                st.write(grounded)
