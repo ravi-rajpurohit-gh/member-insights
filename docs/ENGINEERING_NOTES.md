@@ -38,7 +38,7 @@ The "AI-assisted insight" panel is deterministic by design. It summarizes metric
 
 ### Governed Insights Assistant
 
-The assistant is function-backed rather than free-form. It answers common stakeholder questions using curated metrics and modeled tables. It also has an optional local LLM interpretation mode powered by Ollama through an OpenAI-compatible local endpoint. The model only receives the grounded answer and context; it does not execute SQL or invent metrics. The OpenAI SDK is used as a client interface, not as a requirement to use OpenAI's paid hosted models.
+The assistant is function-backed rather than free-form. It answers common stakeholder questions using curated metrics and modeled tables. It also has an optional local LLM interpretation mode powered by Ollama's local HTTP API. The model only receives the grounded answer and context; it does not execute SQL or invent metrics. No paid hosted LLM API is required.
 
 LangChain is intentionally not included yet. The current assistant needs a small, inspectable tool boundary rather than a full orchestration framework. If the assistant grows to multiple retrieval sources, memory, evaluation traces, or provider routing, LangChain or LangGraph would become more useful.
 

@@ -81,7 +81,7 @@ Mirrors a production environment with:
 - **AWS:** S3 landing zones, Glue catalog, Lambda/Step Functions for lightweight workflows, and CloudWatch for logs and alerts.
 - **Observability tooling:** freshness, schema drift, row-count anomalies, failed checks, and metric SLAs.
 - **Approved LLM tooling:** natural-language explanations over curated aggregate tables and documented metric definitions.
-- **Local LLM option:** Ollama through an OpenAI-compatible local endpoint for low-cost interpretation of grounded analytical results.
+- **Local LLM option:** Ollama through its local HTTP API for low-cost interpretation of grounded analytical results.
 - **GitHub Actions keep-alive:** scheduled app wake-up checks for Streamlit Community Cloud deployments.
 
 ## Architecture
@@ -139,7 +139,7 @@ ollama pull llama3.2
 ollama serve
 ```
 
-The app uses the OpenAI SDK as a client for Ollama's OpenAI-compatible local endpoint. This does not call OpenAI's paid API unless the code is explicitly changed to point at OpenAI-hosted models.
+The app calls Ollama's local HTTP API directly. It does not call OpenAI's paid API.
 
 ## Quality Checks
 

@@ -5,8 +5,9 @@
 - Added Experimentation tab for algorithm-release control/treatment analysis with recovery, sleep, engagement, and guardrail metrics.
 - Improved experiment visualization with metric selector and baseline/release-candidate terminology.
 - Added synthetic experiment assignment data and experiment marts.
-- Added optional local LLM interpretation in Insights Assistant using Ollama through an OpenAI-compatible local endpoint.
+- Added optional local LLM interpretation in Insights Assistant using Ollama through its native local HTTP API.
 - Added Ollama availability checks and setup guidance so the assistant falls back cleanly when the local runtime is not running.
+- Removed decorative zero deltas from KPI cards that do not have a meaningful comparison period.
 - Added token/latency/cost metadata display for LLM interpretation when available.
 - Added Growth & Retention analytics for new members, retention rate, subscription continuity, acquisition channels, gender, plan, and cohort filters.
 - Added governed Insights Assistant powered by curated analytical functions instead of free-form SQL.

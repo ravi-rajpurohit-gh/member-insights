@@ -261,6 +261,7 @@ div[data-baseweb="select"] > div {{
 .delta.up {{ color: {PALETTE["green"]}; }}
 .delta.down {{ color: {PALETTE["red"]}; }}
 .delta.neutral {{ color: {PALETTE["yellow"]}; }}
+.delta.placeholder {{ visibility: hidden; }}
 
 .ring {{
     width: 66px;
@@ -383,10 +384,13 @@ def format_delta(delta: float, suffix: str = "") -> str:
     return f"{delta:+.1f}{suffix}"
 
 
-def metric_card(label: str, value: str, delta: float, ring_score: float, ring_label: str, color: str, suffix: str = "", inverse: bool = False) -> None:
+def metric_card(label: str, value: str, delta: float | None, ring_score: float, ring_label: str, color: str, suffix: str = "", inverse: bool = False) -> None:
     """Render a compact production-style metric card with a status ring."""
     score_percent = max(0, min(100, ring_score))
     score_class = "score long" if len(value) >= 6 else "score"
+    delta_html = '<div class="delta placeholder">&nbsp;</div>'
+    if delta is not None:
+        delta_html = f'<div class="delta {delta_class(delta, inverse=inverse)}">{format_delta(delta, suffix)}</div>'
     st.markdown(
         f"""
 <div class="metric-card">
@@ -394,7 +398,7 @@ def metric_card(label: str, value: str, delta: float, ring_score: float, ring_la
   <div class="metric-row">
     <div>
       <div class="{score_class}">{value}</div>
-      <div class="delta {delta_class(delta, inverse=inverse)}">{format_delta(delta, suffix)}</div>
+      {delta_html}
     </div>
     <div class="ring" style="background: radial-gradient(circle at center, #080909 0 56%, transparent 57%), conic-gradient({color} {score_percent:.1f}%, #222629 0);">
       <div class="ring-inner">{ring_label}</div>
@@ -571,37 +575,48 @@ def experiment_answer(prompt: str, experiment_summary: pd.DataFrame) -> str:
 
 
 def llm_interpretation(prompt: str, grounded_answer: str, context: dict[str, object]) -> tuple[str, dict[str, object]]:
-    """Optionally summarize grounded metrics with a local/OpenAI-compatible LLM."""
-    from openai import OpenAI
-
-    client = OpenAI(api_key="ollama", base_url="http://localhost:11434/v1")
-    messages = [
-        {
-            "role": "system",
-            "content": (
-                "You are a concise analytics engineer. Use only the provided grounded answer and context. "
-                "Do not invent numbers. Explain the business meaning in 2-3 sentences."
-            ),
-        },
-        {
-            "role": "user",
-            "content": f"Question: {prompt}\nGrounded answer: {grounded_answer}\nContext: {context}",
-        },
-    ]
+    """Optionally summarize grounded metrics with Ollama's local HTTP API."""
+    payload = {
+        "model": "llama3.2",
+        "stream": False,
+        "messages": [
+            {
+                "role": "system",
+                "content": (
+                    "You are a concise analytics engineer. Use only the provided grounded answer and context. "
+                    "Do not invent numbers. Explain the business meaning in 2-3 sentences."
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"Question: {prompt}\nGrounded answer: {grounded_answer}\nContext: {context}",
+            },
+        ],
+    }
     started = time.perf_counter()
-    response = client.chat.completions.create(model="llama3.2", messages=messages)
+    request = urllib.request.Request(
+        "http://localhost:11434/api/chat",
+        data=json.dumps(payload).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with urllib.request.urlopen(request, timeout=45) as response:
+        result = json.loads(response.read().decode("utf-8"))
     latency = time.perf_counter() - started
-    usage = getattr(response, "usage", None)
+    prompt_tokens = result.get("prompt_eval_count")
+    completion_tokens = result.get("eval_count")
     metadata = {
-        "provider": "local_ollama_openai_compatible_api",
+        "provider": "local_ollama_native_api",
         "model": "llama3.2",
         "latency_s": round(latency, 2),
-        "prompt_tokens": getattr(usage, "prompt_tokens", None),
-        "completion_tokens": getattr(usage, "completion_tokens", None),
-        "total_tokens": getattr(usage, "total_tokens", None),
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "total_tokens": prompt_tokens + completion_tokens if prompt_tokens is not None and completion_tokens is not None else None,
+        "total_duration_s": round(result.get("total_duration", 0) / 1_000_000_000, 2) if result.get("total_duration") else None,
         "estimated_cost_usd": 0.0,
     }
-    return response.choices[0].message.content or grounded_answer, metadata
+    answer = result.get("message", {}).get("content")
+    return answer or grounded_answer, metadata
 
 
 def check_ollama_status() -> tuple[bool, str]:
@@ -694,13 +709,13 @@ tab_growth, tab_signals, tab_experiment, tab_health, tab_dictionary, tab_assista
 with tab_growth:
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        metric_card("New Members 30D", f"{lifecycle_kpis['new_members_30d']:,}", 0, min(100, lifecycle_kpis["new_members_30d"]), "NEW", PALETTE["cyan"])
+        metric_card("New Members 30D", f"{lifecycle_kpis['new_members_30d']:,}", None, min(100, lifecycle_kpis["new_members_30d"]), "NEW", PALETTE["cyan"])
     with col2:
-        metric_card("Retention Rate", f"{lifecycle_kpis['retention_rate_pct']:.1f}%", 0, lifecycle_kpis["retention_rate_pct"], "RET", score_color(lifecycle_kpis["retention_rate_pct"]))
+        metric_card("Retention Rate", f"{lifecycle_kpis['retention_rate_pct']:.1f}%", None, lifecycle_kpis["retention_rate_pct"], "RET", score_color(lifecycle_kpis["retention_rate_pct"]))
     with col3:
-        metric_card("Subscription Continuity", f"{lifecycle_kpis['subscription_continuity_pct']:.1f}%", 0, lifecycle_kpis["subscription_continuity_pct"], "SUB", score_color(lifecycle_kpis["subscription_continuity_pct"]))
+        metric_card("Subscription Continuity", f"{lifecycle_kpis['subscription_continuity_pct']:.1f}%", None, lifecycle_kpis["subscription_continuity_pct"], "SUB", score_color(lifecycle_kpis["subscription_continuity_pct"]))
     with col4:
-        metric_card("Active Members 30D", f"{lifecycle_kpis['active_members_30d']:,}", 0, 100, "ACT", PALETTE["green"])
+        metric_card("Active Members 30D", f"{lifecycle_kpis['active_members_30d']:,}", None, 100, "ACT", PALETTE["green"])
 
     left, right = st.columns(2)
     with left:
@@ -881,7 +896,7 @@ with tab_health:
         cols = st.columns(3)
         for col, (label, value, ring_value, ring_text, ring_color) in zip(cols, row):
             with col:
-                metric_card(label, value, 0, ring_value, ring_text, ring_color)
+                metric_card(label, value, None, ring_value, ring_text, ring_color)
 
     checks_display = checks.copy()
     checks_display["status"] = checks_display["passed"].map({True: "PASS", False: "FAIL"})
@@ -923,9 +938,9 @@ with tab_dictionary:
 with tab_assistant:
     st.markdown("## Governed Insights Assistant")
     st.caption("Answers are grounded in curated analytical functions over modeled tables. Optional local Ollama mode only interprets grounded results.")
-    st.caption("Local LLM mode uses Ollama through an OpenAI-compatible local endpoint. It does not make paid OpenAI API calls.")
+    st.caption("Local LLM mode uses Ollama's local HTTP API. It does not make paid OpenAI API calls.")
     ollama_ok, ollama_message = check_ollama_status()
-    use_llm = st.toggle("Use local Ollama interpretation", value=False, help="Runs against local Ollama through an OpenAI-compatible endpoint. No paid OpenAI API calls are made.")
+    use_llm = st.toggle("Use local Ollama interpretation", value=False, help="Runs against local Ollama on this machine. No paid OpenAI API calls are made.")
     if use_llm:
         if ollama_ok:
             st.success(f"{ollama_message} Token usage is displayed when returned by the local server; estimated cost is $0.00.")
