@@ -108,11 +108,15 @@ flowchart LR
 
 ```text
 member-insights/
-  app.py
+  app.py                  # Single-page Streamlit app and tab flow
   generate_synthetic_data.py
   requirements.txt
   CHANGELOG.md
   docs/ENGINEERING_NOTES.md
+  src/
+    data.py               # DuckDB access and quality-check adapter
+    metrics.py            # Governed calculations and assistant router
+    ui.py                 # Shared CSS, labels, cards, and chart styling
   sql/01_build_models.sql
   tests/run_quality_checks.py
   .github/workflows/keep-alive.yml

@@ -10,6 +10,7 @@
 - Polished chart labels, tooltips, and table headers so user-facing text no longer exposes raw snake_case field names.
 - Updated categorical chart axes to angled labels for better readability.
 - Clarified retention and subscription continuity KPI cards as 30-day metrics.
+- Refactored Streamlit helper logic into `src/data.py`, `src/metrics.py`, and `src/ui.py` while keeping the app as a single-page tabbed demo.
 - Removed decorative zero deltas from KPI cards that do not have a meaningful comparison period.
 - Added token/latency/cost metadata display for assistant responses.
 - Added Growth & Retention analytics for new members, retention rate, subscription continuity, acquisition channels, gender, plan, and cohort filters.
