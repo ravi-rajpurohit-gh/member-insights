@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Generate synthetic WHOOP-like member events and compile DuckDB models.
+"""Generate synthetic wearable member events and compile DuckDB models.
 
 The generator creates realistic analytical shape, not real member data: member
 cohorts, wearable signals, app engagement, workouts, and daily behavioral
@@ -18,7 +18,7 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
-DB_PATH = ROOT / "whoop_member_insights.duckdb"
+DB_PATH = ROOT / "member_insights.duckdb"
 SQL_PATH = ROOT / "sql" / "01_build_models.sql"
 
 
@@ -106,7 +106,7 @@ def build_warehouse() -> None:
 
 def main() -> None:
     """CLI entrypoint for regenerating data and rebuilding the warehouse."""
-    parser = argparse.ArgumentParser(description="Generate synthetic WHOOP-like member events and DuckDB models.")
+    parser = argparse.ArgumentParser(description="Generate synthetic wearable member events and DuckDB models.")
     parser.add_argument("--members", type=int, default=160)
     parser.add_argument("--days", type=int, default=45)
     parser.add_argument("--seed", type=int, default=42)

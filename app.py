@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Streamlit interface for the WHOOP Member Insights Lakehouse demo.
+"""Streamlit interface for the Member Insights Lakehouse demo.
 
 The app intentionally keeps business-facing member insights and data-platform
 health in the same surface. That mirrors how production data products need to
@@ -18,12 +18,11 @@ import streamlit as st
 
 
 ROOT = Path(__file__).resolve().parent
-DB_PATH = ROOT / "whoop_member_insights.duckdb"
+DB_PATH = ROOT / "member_insights.duckdb"
 
-# Visual language: WHOOP-inspired, but not official WHOOP branding.
-# Recovery uses the familiar green/yellow/red semantics documented publicly by
-# WHOOP; other colors are restrained accents for sleep, strain, and platform
-# telemetry.
+# Visual language: dark, fitness analytics-inspired, and intentionally neutral.
+# Recovery-style health metrics use green/yellow/red status semantics; other
+# colors are restrained accents for sleep, strain, and platform telemetry.
 PALETTE = {
     "bg": "#050505",
     "panel": "#111213",
@@ -133,7 +132,7 @@ div[data-baseweb="select"] > div {{
     font-family: 'IBM Plex Mono', monospace;
 }}
 
-.whoop-header {{
+.mi-header {{
     display: flex;
     justify-content: space-between;
     align-items: flex-start;
@@ -142,7 +141,7 @@ div[data-baseweb="select"] > div {{
     margin-bottom: 1.25rem;
 }}
 
-.whoop-kicker {{
+.mi-kicker {{
     font-family: 'IBM Plex Mono', monospace;
     color: {PALETTE["green"]};
     font-size: 0.72rem;
@@ -151,7 +150,7 @@ div[data-baseweb="select"] > div {{
     font-weight: 600;
 }}
 
-.whoop-title {{
+.mi-title {{
     color: {PALETTE["text"]};
     font-size: 2rem;
     line-height: 1.05;
@@ -160,7 +159,7 @@ div[data-baseweb="select"] > div {{
     margin-top: 0.25rem;
 }}
 
-.whoop-subtitle {{
+.mi-subtitle {{
     color: {PALETTE["muted"]};
     font-size: 0.92rem;
     line-height: 1.55;
@@ -443,14 +442,14 @@ def explain_metric(selected_cohort: str, latest: pd.Series, previous: pd.Series)
     )
 
 
-st.set_page_config(page_title="WHOOP Member Insights", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="Member Insights", layout="wide", initial_sidebar_state="expanded")
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
 with st.sidebar:
     st.markdown(
         """
 <div class="sidebar-brand">
-  <div class="sidebar-mark">WHOOP</div>
+  <div class="sidebar-mark">MEMBER INSIGHTS</div>
   <div class="sidebar-copy">
     Member insights lakehouse for synthetic recovery, sleep, strain, engagement, and platform-health analytics.
   </div>
@@ -487,11 +486,11 @@ latest_date = pd.to_datetime(filtered["event_date"].max()).strftime("%b %d, %Y")
 
 st.markdown(
     f"""
-<div class="whoop-header">
+<div class="mi-header">
   <div>
-    <div class="whoop-kicker">Member Insights · Synthetic Data</div>
-    <div class="whoop-title">Performance Signals Command Center</div>
-    <div class="whoop-subtitle">
+    <div class="mi-kicker">Member Insights · Synthetic Data</div>
+    <div class="mi-title">Performance Signals Command Center</div>
+    <div class="mi-subtitle">
       Cohort-level recovery, sleep, strain, engagement, and data-platform health modeled from wearable and app events.
       Built to demonstrate trusted metrics, quality gates, observability, and governed AI explanations.
     </div>

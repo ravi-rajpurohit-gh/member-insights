@@ -1,8 +1,8 @@
-# WHOOP Member Insights Lakehouse
+# Member Insights Lakehouse
 
 A compact, production-minded proof of concept for turning synthetic wearable and app events into trusted member insights. The project demonstrates how a data engineering team can model high-volume behavioral and physiological signals into reliable metrics for product analytics, experimentation, member insights, and AI-assisted workflows.
 
-All data is synthetic. This project does not use or imply access to WHOOP private data.
+All data is synthetic. This project does not use or imply access to any private company, product, or member data.
 
 ## Vision
 
@@ -44,9 +44,9 @@ The underlying model covers common analytical table patterns:
 - **Audit table:** `pipeline_run_log`, run status and modeled table counts.
 - **Metric dictionary:** `metric_dictionary`, definitions and source logic for governed analytics.
 
-## Why This Maps to WHOOP
+## Why This Matters
 
-WHOOP's Data Engineer II role emphasizes scalable ELT, Python/PySpark, Snowflake, dbt, Kafka/Spark, reliability, observability, experimentation support, and data systems that power member insights. This project mirrors that problem shape in a runnable local environment:
+Modern member-based health and performance products depend on scalable ELT, Python/PySpark, Snowflake-style warehousing, dbt-style modeling, Kafka/Spark-style event processing, reliability, observability, experimentation support, and data systems that power member insights. This project mirrors that problem shape in a runnable local environment:
 
 - raw wearable/app signals become trusted member analytics,
 - event data is transformed into clean member-day facts and cohort marts,
@@ -94,7 +94,7 @@ flowchart LR
 ## Project Structure
 
 ```text
-whoop-member-insights/
+member-insights/
   app.py
   generate_synthetic_data.py
   requirements.txt

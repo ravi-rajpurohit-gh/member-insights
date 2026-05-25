@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Data quality checks for the WHOOP Member Insights warehouse.
+"""Data quality checks for the Member Insights warehouse.
 
 These checks are intentionally simple and inspectable. They represent the kinds
 of gates that would become dbt tests, Great Expectations checks, or warehouse
@@ -13,7 +13,7 @@ import duckdb
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DB_PATH = ROOT / "whoop_member_insights.duckdb"
+DB_PATH = ROOT / "member_insights.duckdb"
 
 
 CHECKS = [

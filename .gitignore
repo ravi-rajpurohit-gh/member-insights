@@ -3,3 +3,4 @@ __pycache__/
 *.pyc
 .streamlit/
 !.streamlit/config.toml
+docs/PROJECT_TRACKER.md

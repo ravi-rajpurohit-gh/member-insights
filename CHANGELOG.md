@@ -2,7 +2,7 @@
 
 ## 2026-05-25
 
-- Redesigned Streamlit UI with a WHOOP-inspired performance dashboard.
+- Redesigned Streamlit UI with a neutral performance analytics dashboard.
 - Added status-ring metric cards for recovery, sleep, strain, low-recovery risk, pipeline status, raw events, member days, and quality pass rate.
 - Added custom Streamlit dark theme configuration.
 - Rewrote README around vision, audience, business alignment, and production mapping.

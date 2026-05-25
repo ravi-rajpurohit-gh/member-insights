@@ -20,7 +20,7 @@ It is intentionally small enough to explain in an interview, but the structure m
 
 ### Synthetic Data Only
 
-The project uses generated data to avoid any implication of access to WHOOP private data. The generator focuses on analytical shape: cohorts, sleep, recovery, strain, app engagement, workouts, and member-day behavior.
+The project uses generated data to avoid any implication of access to private company, product, or member data. The generator focuses on analytical shape: cohorts, sleep, recovery, strain, app engagement, workouts, and member-day behavior.
 
 ### DuckDB as Local Warehouse
 
@@ -36,7 +36,7 @@ The "AI-assisted insight" panel is deterministic by design. It summarizes metric
 
 ### Product-Like UI
 
-The Streamlit app uses a WHOOP-inspired visual language: dark surface, score rings, recovery/sleep/strain prominence, and green/yellow/red status semantics. It is inspired by public product patterns, not an official WHOOP interface.
+The Streamlit app uses a neutral health-and-performance analytics visual language: dark surface, score rings, recovery/sleep/strain prominence, and green/yellow/red status semantics.
 
 ## Production Mapping
 
