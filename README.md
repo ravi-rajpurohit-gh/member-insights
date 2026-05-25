@@ -29,11 +29,13 @@ This application is built for the kinds of teams that need to make member behavi
 
 ## What It Shows
 
-The app has three views:
+The app has five views:
 
-- **Member Insights:** cohort trends for recovery, sleep, strain, engagement, low-recovery risk, and a deterministic AI-style explanation of metric movement.
-- **Data Platform Health:** pipeline status, table row counts, freshness, model outputs, and quality-check pass rate.
+- **Growth & Retention:** new members, retention rate, subscription continuity, acquisition channels, and segmentation by plan/gender/cohort.
+- **Performance Signals:** cohort trends for recovery, sleep, strain, engagement, low-recovery risk, and a deterministic AI-style explanation of metric movement.
+- **Data Platform Health:** pipeline status, table row counts, freshness, model inventory, and quality-check pass rate.
 - **Metric Dictionary:** governed definitions and source logic for the metrics shown in the dashboard.
+- **Insights Assistant:** governed Q&A over curated analytical functions for growth, retention, subscription continuity, segmentation, and performance signals.
 
 The underlying model covers common analytical table patterns:
 
@@ -41,7 +43,9 @@ The underlying model covers common analytical table patterns:
 - **Dimension table:** `dim_members`, member cohort, plan, goal, and demographic attributes.
 - **Fact table:** `fct_member_day`, one row per member per day for analytics and ML features.
 - **Aggregate table:** `agg_cohort_daily`, cohort-level trusted metrics for dashboards and AI explanations.
+- **Lifecycle aggregate:** `agg_member_lifecycle`, member growth, retention, continuity, and segmentation metrics.
 - **Audit table:** `pipeline_run_log`, run status and modeled table counts.
+- **Model inventory:** `model_inventory`, table grains, types, and row counts for platform health.
 - **Metric dictionary:** `metric_dictionary`, definitions and source logic for governed analytics.
 
 ## Why This Matters
@@ -75,6 +79,7 @@ Mirrors a production environment with:
 - **AWS:** S3 landing zones, Glue catalog, Lambda/Step Functions for lightweight workflows, and CloudWatch for logs and alerts.
 - **Observability tooling:** freshness, schema drift, row-count anomalies, failed checks, and metric SLAs.
 - **Approved LLM tooling:** natural-language explanations over curated aggregate tables and documented metric definitions.
+- **GitHub Actions keep-alive:** scheduled app wake-up checks for Streamlit Community Cloud deployments.
 
 ## Architecture
 

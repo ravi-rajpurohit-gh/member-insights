@@ -1,0 +1,78 @@
+name: Keep Streamlit App Alive
+
+on:
+  schedule:
+    - cron: "0 8 * * *"
+    - cron: "0 20 * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    name: Wake Streamlit App
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      APP_URL: https://member-insights.streamlit.app/
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Install Playwright + Chromium
+        run: |
+          npm install playwright
+          npx playwright install chromium --with-deps
+
+      - name: Wake member-insights.streamlit.app
+        run: |
+          cat > wake.js << 'EOF'
+          const { chromium } = require('playwright');
+
+          (async () => {
+            const browser = await chromium.launch();
+            const page = await browser.newPage();
+
+            try {
+              console.log(`Navigating to ${process.env.APP_URL}`);
+              await page.goto(process.env.APP_URL, {
+                waitUntil: 'load',
+                timeout: 60000,
+              });
+
+              await page.waitForTimeout(8000);
+              console.log(`Page URL after load: ${page.url()}`);
+              console.log(`Page title: ${await page.title()}`);
+
+              let clicked = false;
+              try {
+                const wakeBtn = await page.waitForSelector(
+                  'button:has-text("get this app back up"), button:has-text("Wake"), button:has-text("Yes")',
+                  { timeout: 20000 }
+                );
+                if (wakeBtn) {
+                  const label = await wakeBtn.innerText().catch(() => '?');
+                  console.log(`Sleep screen detected. Clicking button: "${label}"`);
+                  await wakeBtn.click();
+                  clicked = true;
+                }
+              } catch {
+                // No sleep button found. The app is already awake.
+              }
+
+              if (clicked) {
+                console.log('Wake button clicked. Waiting 45s for app to boot...');
+                await page.waitForTimeout(45000);
+              } else {
+                console.log('App is already awake.');
+              }
+            } finally {
+              await browser.close();
+            }
+          })().catch(err => {
+            console.error('Error:', err.message);
+            process.exit(1);
+          });
+          EOF
+          node wake.js

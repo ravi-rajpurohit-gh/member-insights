@@ -2,6 +2,10 @@
 
 ## 2026-05-25
 
+- Added Growth & Retention analytics for new members, retention rate, subscription continuity, acquisition channels, gender, plan, and cohort filters.
+- Added governed Insights Assistant powered by curated analytical functions instead of free-form SQL.
+- Expanded Data Platform Health with freshness, lifecycle segments, model inventory, and additional data quality checks.
+- Added GitHub Actions keep-alive workflow for Streamlit Community Cloud.
 - Redesigned Streamlit UI with a neutral performance analytics dashboard.
 - Added status-ring metric cards for recovery, sleep, strain, low-recovery risk, pipeline status, raw events, member days, and quality pass rate.
 - Added custom Streamlit dark theme configuration.

@@ -41,6 +41,22 @@ CHECKS = [
         "freshness_recent",
         "select max(event_date) >= current_date - interval 2 day from stg_member_events",
     ),
+    (
+        "member_status_accepted",
+        "select count(*) = 0 from dim_members where member_status not in ('active', 'churned')",
+    ),
+    (
+        "gender_accepted",
+        "select count(*) = 0 from dim_members where gender not in ('female', 'male', 'non_binary', 'not_provided')",
+    ),
+    (
+        "lifecycle_rates_in_bounds",
+        "select count(*) = 0 from agg_member_lifecycle where retention_rate_pct < 0 or retention_rate_pct > 100 or subscription_continuity_pct < 0 or subscription_continuity_pct > 100",
+    ),
+    (
+        "model_inventory_populated",
+        "select count(*) >= 7 from model_inventory",
+    ),
 ]
 
 

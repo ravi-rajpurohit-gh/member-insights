@@ -12,6 +12,7 @@ It is intentionally small enough to explain in an interview, but the structure m
 - explicit table grains,
 - dimensional and fact modeling,
 - aggregate marts for dashboards,
+- lifecycle marts for member growth, retention, and subscription continuity,
 - quality gates,
 - metric documentation,
 - and AI explanations constrained to trusted data products.
@@ -34,6 +35,10 @@ The SQL build uses explicit staging, dimension, fact, aggregate, audit, and metr
 
 The "AI-assisted insight" panel is deterministic by design. It summarizes metric movement from curated aggregates instead of generating arbitrary SQL over raw data. This shows the intended governance boundary for an LLM-powered analytics workflow.
 
+### Governed Insights Assistant
+
+The assistant is function-backed rather than free-form. It answers common stakeholder questions using curated metrics and modeled tables. This keeps the first version deterministic and deployable without secrets, while leaving a clean path to add OpenAI-compatible tool calling later.
+
 ### Product-Like UI
 
 The Streamlit app uses a neutral health-and-performance analytics visual language: dark surface, score rings, recovery/sleep/strain prominence, and green/yellow/red status semantics.
@@ -48,6 +53,7 @@ The Streamlit app uses a neutral health-and-performance analytics visual languag
 | Python quality checks | dbt tests, Great Expectations, warehouse assertions |
 | Streamlit dashboard | Internal analytics app, BI dashboard, or product analytics surface |
 | Deterministic AI copy | Approved LLM over governed metric marts |
+| GitHub Actions workflow | Scheduled availability checks for hosted Streamlit apps |
 
 ## Review Checklist
 
@@ -55,4 +61,5 @@ The Streamlit app uses a neutral health-and-performance analytics visual languag
 - Run quality checks: `python tests/run_quality_checks.py`
 - Run app: `streamlit run app.py`
 - Confirm the dashboard tabs render: Member Insights, Data Platform Health, Metric Dictionary
+- Confirm Growth & Retention and Insights Assistant render and answer from current metrics
 - Confirm all quality checks pass before sharing or deploying

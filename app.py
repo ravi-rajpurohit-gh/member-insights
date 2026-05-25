@@ -340,7 +340,6 @@ def ensure_database() -> None:
     subprocess.run([sys.executable, str(ROOT / "generate_synthetic_data.py")], check=True, cwd=ROOT)
 
 
-@st.cache_data
 def query(sql: str) -> pd.DataFrame:
     """Run read-only analytical queries against the compiled DuckDB file."""
     ensure_database()
@@ -457,8 +456,112 @@ def explain_metric(selected_cohort: str, latest: pd.Series, previous: pd.Series)
     )
 
 
+def option_label(value: str) -> str:
+    return value.replace("_", " ").title()
+
+
+def filtered_member_days(member_days: pd.DataFrame, cohort: str, gender: str, plan: str) -> pd.DataFrame:
+    df = member_days.copy()
+    if cohort != "All":
+        df = df[df["cohort"] == cohort]
+    if gender != "All":
+        df = df[df["gender"] == gender]
+    if plan != "All":
+        df = df[df["plan_type"] == plan]
+    return df
+
+
+def filtered_lifecycle(lifecycle: pd.DataFrame, cohort: str, gender: str, plan: str) -> pd.DataFrame:
+    df = lifecycle.copy()
+    if cohort != "All":
+        df = df[df["cohort"] == cohort]
+    if gender != "All":
+        df = df[df["gender"] == gender]
+    if plan != "All":
+        df = df[df["plan_type"] == plan]
+    return df
+
+
+def daily_rollup(member_days: pd.DataFrame) -> pd.DataFrame:
+    return (
+        member_days.groupby("event_date", as_index=False)
+        .agg(
+            active_members=("member_id", "nunique"),
+            avg_recovery=("recovery_score", "mean"),
+            avg_sleep_hours=("sleep_minutes", lambda s: s.mean() / 60),
+            avg_strain=("daily_strain", "mean"),
+            avg_app_minutes=("app_session_minutes", "mean"),
+            low_recovery_pct=("recovery_score", lambda s: (s < 45).mean() * 100),
+            low_engagement_pct=("app_session_minutes", lambda s: (s < 2).mean() * 100),
+        )
+        .round(1)
+        .sort_values("event_date")
+    )
+
+
+def lifecycle_summary(lifecycle: pd.DataFrame) -> dict[str, float]:
+    total = int(lifecycle["total_members"].sum())
+    active = int(lifecycle["active_members_30d"].sum())
+    new = int(lifecycle["new_members_30d"].sum())
+    churned = int(lifecycle["churned_members"].sum())
+    continuity = active * 100 / total if total else 0
+    retention_denominator = total - new
+    retention = active * 100 / retention_denominator if retention_denominator else 0
+    return {
+        "total_members": total,
+        "active_members_30d": active,
+        "new_members_30d": new,
+        "churned_members": churned,
+        "subscription_continuity_pct": round(continuity, 1),
+        "retention_rate_pct": round(min(retention, 100), 1),
+    }
+
+
+def assistant_answer(prompt: str, lifecycle: pd.DataFrame, member_days: pd.DataFrame) -> str:
+    """Answer common member analytics questions from governed tables."""
+    question = prompt.lower()
+    summary = lifecycle_summary(lifecycle)
+    latest_day = daily_rollup(member_days).iloc[-1]
+
+    if "new" in question:
+        by_channel = lifecycle.groupby("acquisition_channel", as_index=False)["new_members_30d"].sum().sort_values("new_members_30d", ascending=False)
+        top = by_channel.iloc[0]
+        return (
+            f"There are {summary['new_members_30d']:,} new members in the last 30 days. "
+            f"The strongest acquisition channel is {option_label(top['acquisition_channel'])} with {int(top['new_members_30d']):,} new members."
+        )
+    if "retention" in question:
+        by_cohort = lifecycle.groupby("cohort", as_index=False).apply(lambda d: pd.Series({"retention_rate_pct": lifecycle_summary(d)["retention_rate_pct"]}))
+        top = by_cohort.sort_values("retention_rate_pct", ascending=False).iloc[0]
+        return f"Filtered retention is {summary['retention_rate_pct']:.1f}%. The strongest cohort is {option_label(top['cohort'])} at {top['retention_rate_pct']:.1f}%."
+    if "subscription" in question or "continuity" in question:
+        by_plan = lifecycle.groupby("plan_type", as_index=False).apply(lambda d: pd.Series({"subscription_continuity_pct": lifecycle_summary(d)["subscription_continuity_pct"]}))
+        top = by_plan.sort_values("subscription_continuity_pct", ascending=False).iloc[0]
+        return f"Subscription continuity is {summary['subscription_continuity_pct']:.1f}%. {option_label(top['plan_type'])} members have the strongest continuity at {top['subscription_continuity_pct']:.1f}%."
+    if "gender" in question:
+        by_gender = lifecycle.groupby("gender", as_index=False).apply(lambda d: pd.Series({"members": d["total_members"].sum(), "continuity": lifecycle_summary(d)["subscription_continuity_pct"]}))
+        rows = "; ".join(f"{option_label(r.gender)}: {int(r.members):,} members, {r.continuity:.1f}% continuity" for r in by_gender.itertuples())
+        return f"Gender breakdown for the current filters: {rows}."
+    return (
+        f"Current filtered population: {summary['total_members']:,} members, {summary['active_members_30d']:,} active in the last 30 days, "
+        f"{summary['retention_rate_pct']:.1f}% retention, and {summary['subscription_continuity_pct']:.1f}% subscription continuity. "
+        f"Latest performance signals show {latest_day.avg_recovery:.1f}% recovery, {latest_day.avg_sleep_hours:.1f}h sleep, and {latest_day.avg_strain:.1f} strain."
+    )
+
+
 st.set_page_config(page_title="Member Insights", layout="wide", initial_sidebar_state="expanded")
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
+
+member_days = query("select * from fct_member_day")
+lifecycle = query("select * from agg_member_lifecycle")
+run_log = query("select * from pipeline_run_log")
+checks = quality_results()
+latest_run = run_log.iloc[-1]
+quality_rate = checks["passed"].mean() * 100
+
+cohorts = ["All"] + sorted(member_days["cohort"].unique())
+genders = ["All"] + sorted(member_days["gender"].unique())
+plans = ["All"] + sorted(member_days["plan_type"].unique())
 
 with st.sidebar:
     st.markdown(
@@ -466,37 +569,27 @@ with st.sidebar:
 <div class="sidebar-brand">
   <div class="sidebar-mark">MEMBER INSIGHTS</div>
   <div class="sidebar-copy">
-    Member insights lakehouse for recovery, sleep, strain, engagement, and platform-health analytics.
+    Growth, retention, subscription continuity, performance signals, and platform health for member analytics teams.
   </div>
 </div>
 """,
         unsafe_allow_html=True,
     )
-    st.markdown("## Cohort")
-
-daily = query("select * from agg_cohort_daily order by event_date, cohort")
-cohorts = sorted(daily["cohort"].unique())
-
-with st.sidebar:
-    selected_cohort = st.selectbox(
-        "Member segment",
-        cohorts,
-        index=cohorts.index("athlete") if "athlete" in cohorts else 0,
-        format_func=lambda value: value.replace("_", " ").title(),
-    )
+    st.markdown("## Filters")
+    selected_cohort = st.selectbox("Member segment", cohorts, index=0, format_func=option_label)
+    selected_gender = st.selectbox("Gender", genders, format_func=option_label)
+    selected_plan = st.selectbox("Plan", plans, format_func=option_label)
     st.markdown("## Stack")
     st.caption("Python · DuckDB · dbt-style SQL · Streamlit · quality checks")
     st.markdown("## Production Mirror")
     st.caption("Kafka/Spark · Snowflake · dbt · AWS · governed AI over metric marts")
 
-filtered = daily[daily["cohort"] == selected_cohort].copy()
+filtered_days = filtered_member_days(member_days, selected_cohort, selected_gender, selected_plan)
+filtered_life = filtered_lifecycle(lifecycle, selected_cohort, selected_gender, selected_plan)
+filtered = daily_rollup(filtered_days)
 latest = filtered.iloc[-1]
 previous = filtered.iloc[-2]
-
-run_log = query("select * from pipeline_run_log")
-checks = quality_results()
-latest_run = run_log.iloc[-1]
-quality_rate = checks["passed"].mean() * 100
+lifecycle_kpis = lifecycle_summary(filtered_life)
 latest_date = pd.to_datetime(filtered["event_date"].max()).strftime("%b %d, %Y")
 
 st.markdown(
@@ -506,8 +599,8 @@ st.markdown(
     <div class="mi-kicker">Member Insights Platform</div>
     <div class="mi-title">Performance Signals Command Center</div>
     <div class="mi-subtitle">
-      Cohort-level recovery, sleep, strain, engagement, and data-platform health modeled from wearable and app events
-      with trusted metrics, quality gates, observability, and governed AI explanations.
+      Growth, retention, subscription continuity, recovery, sleep, strain, engagement, and data-platform health
+      modeled from trusted member and event tables.
     </div>
   </div>
   <div class="header-status">
@@ -519,9 +612,58 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-tab_insights, tab_health, tab_dictionary = st.tabs(["Member Insights", "Data Platform Health", "Metric Dictionary"])
+tab_growth, tab_signals, tab_health, tab_dictionary, tab_assistant = st.tabs(
+    ["Growth & Retention", "Performance Signals", "Data Platform Health", "Metric Dictionary", "Insights Assistant"]
+)
 
-with tab_insights:
+with tab_growth:
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        metric_card("New Members 30D", f"{lifecycle_kpis['new_members_30d']:,}", 0, min(100, lifecycle_kpis["new_members_30d"]), "NEW", PALETTE["cyan"])
+    with col2:
+        metric_card("Retention Rate", f"{lifecycle_kpis['retention_rate_pct']:.1f}%", 0, lifecycle_kpis["retention_rate_pct"], "RET", score_color(lifecycle_kpis["retention_rate_pct"]))
+    with col3:
+        metric_card("Subscription Continuity", f"{lifecycle_kpis['subscription_continuity_pct']:.1f}%", 0, lifecycle_kpis["subscription_continuity_pct"], "SUB", score_color(lifecycle_kpis["subscription_continuity_pct"]))
+    with col4:
+        metric_card("Active Members 30D", f"{lifecycle_kpis['active_members_30d']:,}", 0, 100, "ACT", PALETTE["green"])
+
+    left, right = st.columns(2)
+    with left:
+        st.markdown("## Retention by Cohort")
+        retention_by_cohort = filtered_life.groupby("cohort", as_index=False).apply(
+            lambda d: pd.Series({"retention_rate_pct": lifecycle_summary(d)["retention_rate_pct"], "members": d["total_members"].sum()})
+        )
+        chart = alt.Chart(retention_by_cohort).mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
+            x=alt.X("cohort:N", title=None, sort="-y"),
+            y=alt.Y("retention_rate_pct:Q", title="Retention %"),
+            color=alt.Color("retention_rate_pct:Q", legend=None, scale=alt.Scale(range=[PALETTE["red"], PALETTE["yellow"], PALETTE["green"]])),
+            tooltip=["cohort:N", alt.Tooltip("retention_rate_pct:Q", format=".1f"), alt.Tooltip("members:Q", format=",")],
+        )
+        st.altair_chart(style_chart(chart, height=310), use_container_width=True)
+    with right:
+        st.markdown("## New Members by Acquisition")
+        acquisition = filtered_life.groupby("acquisition_channel", as_index=False)["new_members_30d"].sum()
+        chart = alt.Chart(acquisition).mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
+            x=alt.X("acquisition_channel:N", title=None, sort="-y"),
+            y=alt.Y("new_members_30d:Q", title="New Members"),
+            color=alt.Color("acquisition_channel:N", legend=None, scale=alt.Scale(range=[PALETTE["green"], PALETTE["cyan"], PALETTE["purple"], PALETTE["yellow"], PALETTE["red"]])),
+            tooltip=["acquisition_channel:N", alt.Tooltip("new_members_30d:Q", format=",")],
+        )
+        st.altair_chart(style_chart(chart, height=310), use_container_width=True)
+
+    st.markdown("## Subscription Continuity by Plan and Gender")
+    continuity = filtered_life.groupby(["plan_type", "gender"], as_index=False).apply(
+        lambda d: pd.Series({"subscription_continuity_pct": lifecycle_summary(d)["subscription_continuity_pct"], "members": d["total_members"].sum()})
+    )
+    heatmap = alt.Chart(continuity).mark_rect(cornerRadius=3).encode(
+        x=alt.X("plan_type:N", title="Plan"),
+        y=alt.Y("gender:N", title="Gender"),
+        color=alt.Color("subscription_continuity_pct:Q", title="Continuity %", scale=alt.Scale(range=[PALETTE["red"], PALETTE["yellow"], PALETTE["green"]])),
+        tooltip=["plan_type:N", "gender:N", alt.Tooltip("subscription_continuity_pct:Q", format=".1f"), alt.Tooltip("members:Q", format=",")],
+    )
+    st.altair_chart(style_chart(heatmap, height=260), use_container_width=True)
+
+with tab_signals:
     recovery_delta = latest["avg_recovery"] - previous["avg_recovery"]
     sleep_delta = latest["avg_sleep_hours"] - previous["avg_sleep_hours"]
     strain_delta = latest["avg_strain"] - previous["avg_strain"]
@@ -531,62 +673,31 @@ with tab_insights:
     with col1:
         metric_card("Recovery", f"{latest['avg_recovery']:.1f}%", recovery_delta, latest["avg_recovery"], "REC", score_color(latest["avg_recovery"]))
     with col2:
-        sleep_score = min(100, latest["avg_sleep_hours"] / 8 * 100)
-        metric_card("Sleep", f"{latest['avg_sleep_hours']:.2f}h", sleep_delta, sleep_score, "SLP", PALETTE["cyan"], suffix="h")
+        metric_card("Sleep", f"{latest['avg_sleep_hours']:.2f}h", sleep_delta, min(100, latest["avg_sleep_hours"] / 8 * 100), "SLP", PALETTE["cyan"], suffix="h")
     with col3:
-        strain_score = min(100, latest["avg_strain"] / 21 * 100)
-        metric_card("Strain", f"{latest['avg_strain']:.1f}", strain_delta, strain_score, "STR", PALETTE["purple"])
+        metric_card("Strain", f"{latest['avg_strain']:.1f}", strain_delta, min(100, latest["avg_strain"] / 21 * 100), "STR", PALETTE["purple"])
     with col4:
         risk_score = 100 - latest["low_recovery_pct"]
         metric_card("Low Recovery Risk", f"{latest['low_recovery_pct']:.1f}%", low_recovery_delta, risk_score, "RISK", score_color(risk_score), suffix="%", inverse=True)
 
-    st.markdown("## Cohort Trend")
-    trend_base = filtered.melt(
-        id_vars=["event_date"],
-        value_vars=["avg_recovery", "avg_strain", "low_recovery_pct"],
-        var_name="metric",
-        value_name="value",
-    )
-    trend = (
-        alt.Chart(trend_base)
-        .mark_line(point=True, strokeWidth=2.5)
-        .encode(
-            x=alt.X("event_date:T", title="Date"),
-            y=alt.Y("value:Q", title="Score"),
-            color=alt.Color(
-                "metric:N",
-                scale=alt.Scale(
-                    domain=["avg_recovery", "avg_strain", "low_recovery_pct"],
-                    range=[PALETTE["green"], PALETTE["purple"], PALETTE["red"]],
-                ),
-                legend=alt.Legend(title=None),
-            ),
-            tooltip=["event_date:T", "metric:N", alt.Tooltip("value:Q", format=".1f")],
-        )
+    st.markdown("## Performance Trend")
+    trend_base = filtered.melt(id_vars=["event_date"], value_vars=["avg_recovery", "avg_strain", "low_recovery_pct"], var_name="metric", value_name="value")
+    trend = alt.Chart(trend_base).mark_line(point=True, strokeWidth=2.5).encode(
+        x=alt.X("event_date:T", title="Date"),
+        y=alt.Y("value:Q", title="Score"),
+        color=alt.Color("metric:N", scale=alt.Scale(domain=["avg_recovery", "avg_strain", "low_recovery_pct"], range=[PALETTE["green"], PALETTE["purple"], PALETTE["red"]]), legend=alt.Legend(title=None)),
+        tooltip=["event_date:T", "metric:N", alt.Tooltip("value:Q", format=".1f")],
     )
     st.altair_chart(style_chart(trend, height=330), use_container_width=True)
 
     left, right = st.columns([1.05, 0.95])
     with left:
         st.markdown("## Recovery vs. Strain")
-        scatter = (
-            alt.Chart(filtered)
-            .mark_circle(size=110, opacity=0.88)
-            .encode(
-                x=alt.X("avg_strain:Q", title="Average Strain"),
-                y=alt.Y("avg_recovery:Q", title="Average Recovery"),
-                color=alt.Color(
-                    "low_engagement_pct:Q",
-                    scale=alt.Scale(range=[PALETTE["green"], PALETTE["yellow"], PALETTE["red"]]),
-                    title="Low Engagement %",
-                ),
-                tooltip=[
-                    "event_date:T",
-                    alt.Tooltip("avg_recovery:Q", format=".1f"),
-                    alt.Tooltip("avg_strain:Q", format=".1f"),
-                    alt.Tooltip("low_engagement_pct:Q", format=".1f"),
-                ],
-            )
+        scatter = alt.Chart(filtered).mark_circle(size=110, opacity=0.88).encode(
+            x=alt.X("avg_strain:Q", title="Average Strain"),
+            y=alt.Y("avg_recovery:Q", title="Average Recovery"),
+            color=alt.Color("low_engagement_pct:Q", scale=alt.Scale(range=[PALETTE["green"], PALETTE["yellow"], PALETTE["red"]]), title="Low Engagement %"),
+            tooltip=["event_date:T", alt.Tooltip("avg_recovery:Q", format=".1f"), alt.Tooltip("avg_strain:Q", format=".1f"), alt.Tooltip("low_engagement_pct:Q", format=".1f")],
         )
         st.altair_chart(style_chart(scatter, height=320), use_container_width=True)
     with right:
@@ -594,21 +705,8 @@ with tab_insights:
             f"""
 <div class="panel">
   <div class="panel-title">Governed AI Insight</div>
-  <div class="insight-copy">{explain_metric(selected_cohort, latest, previous)}</div>
+  <div class="insight-copy">{explain_metric(option_label(selected_cohort), latest, previous)}</div>
   <div class="caption-mono">Constrained to aggregate tables and metric definitions.</div>
-</div>
-""",
-            unsafe_allow_html=True,
-        )
-        st.markdown("")
-        st.markdown(
-            f"""
-<div class="panel">
-  <div class="panel-title">Current Segment</div>
-  <div class="insight-copy">
-    {selected_cohort.replace('_', ' ').title()} · {int(latest['active_members'])} active members ·
-    {latest['avg_app_minutes']:.1f} avg app minutes · {latest['low_engagement_pct']:.1f}% low engagement.
-  </div>
 </div>
 """,
             unsafe_allow_html=True,
@@ -621,7 +719,7 @@ with tab_health:
     with col2:
         metric_card("Raw Events", f"{latest_run['raw_events']:,}", 0, 100, "EVT", PALETTE["cyan"])
     with col3:
-        metric_card("Member Days", f"{latest_run['member_days']:,}", 0, 100, "DAY", PALETTE["purple"])
+        metric_card("Freshness", f"{latest_run['freshness_hours']:.1f}h", 0, max(0, 100 - latest_run["freshness_hours"]), "FR", PALETTE["green"])
     with col4:
         metric_card("Quality Pass Rate", f"{quality_rate:.0f}%", 0, quality_rate, "QA", PALETTE["green"])
 
@@ -631,29 +729,22 @@ with tab_health:
     st.dataframe(checks_display[["check_name", "status"]], use_container_width=True, hide_index=True)
 
     st.markdown("## Modeled Tables")
-    table_counts = query(
-        """
-        select 'stg_member_events' as table_name, count(*) as row_count from stg_member_events
-        union all select 'dim_members', count(*) from dim_members
-        union all select 'fct_member_day', count(*) from fct_member_day
-        union all select 'agg_cohort_daily', count(*) from agg_cohort_daily
-        """
-    )
-    bars = (
-        alt.Chart(table_counts)
-        .mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4)
-        .encode(
-            x=alt.X("table_name:N", title=None, sort="-y"),
-            y=alt.Y("row_count:Q", title="Rows"),
-            color=alt.Color("table_name:N", legend=None, scale=alt.Scale(range=[PALETTE["green"], PALETTE["cyan"], PALETTE["purple"], PALETTE["yellow"]])),
-            tooltip=["table_name:N", alt.Tooltip("row_count:Q", format=",")],
-        )
+    table_counts = query("select model_name as table_name, model_type, grain, row_count from model_inventory order by row_count desc")
+    bars = alt.Chart(table_counts).mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
+        x=alt.X("table_name:N", title=None, sort="-y"),
+        y=alt.Y("row_count:Q", title="Rows"),
+        color=alt.Color("model_type:N", legend=alt.Legend(title=None)),
+        tooltip=["table_name:N", "model_type:N", "grain:N", alt.Tooltip("row_count:Q", format=",")],
     )
     st.altair_chart(style_chart(bars, height=320), use_container_width=True)
+    st.dataframe(table_counts, use_container_width=True, hide_index=True)
 
 with tab_dictionary:
     dictionary = query("select * from metric_dictionary order by domain, metric_name")
     st.markdown("## Governed Metric Layer")
+    selected_domain = st.selectbox("Metric domain", ["All"] + sorted(dictionary["domain"].unique()))
+    if selected_domain != "All":
+        dictionary = dictionary[dictionary["domain"] == selected_domain]
     st.dataframe(dictionary, use_container_width=True, hide_index=True)
     st.markdown(
         """
@@ -668,3 +759,25 @@ with tab_dictionary:
 """,
         unsafe_allow_html=True,
     )
+
+with tab_assistant:
+    st.markdown("## Governed Insights Assistant")
+    st.caption("Answers are generated from curated analytical functions over modeled tables. No free-form SQL is executed.")
+    suggestions = [
+        "How many new members joined in the last 30 days?",
+        "What is the retention rate?",
+        "What is the subscription continuity by plan?",
+        "Break down members by gender.",
+        "Summarize the current member segment.",
+    ]
+    cols = st.columns(2)
+    for idx, suggestion in enumerate(suggestions):
+        if cols[idx % 2].button(suggestion, use_container_width=True):
+            st.session_state["assistant_prompt"] = suggestion
+    prompt = st.chat_input("Ask about member growth, retention, subscription continuity, or performance signals...")
+    prompt = prompt or st.session_state.pop("assistant_prompt", None)
+    if prompt:
+        with st.chat_message("user"):
+            st.write(prompt)
+        with st.chat_message("assistant"):
+            st.write(assistant_answer(prompt, filtered_life, filtered_days))

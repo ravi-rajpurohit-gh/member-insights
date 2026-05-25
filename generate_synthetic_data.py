@@ -26,14 +26,37 @@ def build_members(member_count: int, rng: np.random.Generator) -> pd.DataFrame:
     """Create synthetic member dimensions used for cohort analysis."""
     member_ids = [f"m_{idx:04d}" for idx in range(1, member_count + 1)]
     signup_start = pd.Timestamp.today().normalize() - pd.Timedelta(days=420)
-    signup_offsets = rng.integers(0, 330, size=member_count)
+    signup_offsets = rng.integers(0, 410, size=member_count)
+    signup_dates = signup_start + pd.to_timedelta(signup_offsets, unit="D")
+    plan_types = rng.choice(["monthly", "annual", "trial"], member_count, p=[0.38, 0.52, 0.10])
+    cohorts = rng.choice(["new_member", "active_builder", "athlete", "health_optimizer"], member_count, p=[0.22, 0.34, 0.24, 0.20])
+    churn_probability = np.where(plan_types == "annual", 0.08, np.where(plan_types == "monthly", 0.16, 0.34))
+    churn_probability = churn_probability + np.where(cohorts == "athlete", -0.04, 0) + np.where(cohorts == "new_member", 0.06, 0)
+    churned = rng.random(member_count) < np.clip(churn_probability, 0.03, 0.45)
+    today = pd.Timestamp.today().normalize()
+    cancellation_dates = []
+    for signup_date, is_churned in zip(signup_dates, churned):
+        if not is_churned:
+            cancellation_dates.append(pd.NaT)
+            continue
+        earliest_cancel = signup_date + pd.Timedelta(days=31)
+        latest_cancel = today - pd.Timedelta(days=5)
+        if earliest_cancel >= latest_cancel:
+            cancellation_dates.append(pd.NaT)
+        else:
+            cancel_offset = int(rng.integers(0, max(1, (latest_cancel - earliest_cancel).days)))
+            cancellation_dates.append(earliest_cancel + pd.Timedelta(days=cancel_offset))
 
     return pd.DataFrame(
         {
             "member_id": member_ids,
-            "cohort": rng.choice(["new_member", "active_builder", "athlete", "health_optimizer"], member_count, p=[0.22, 0.34, 0.24, 0.20]),
-            "plan_type": rng.choice(["monthly", "annual", "trial"], member_count, p=[0.38, 0.52, 0.10]),
-            "signup_date": signup_start + pd.to_timedelta(signup_offsets, unit="D"),
+            "cohort": cohorts,
+            "plan_type": plan_types,
+            "signup_date": signup_dates,
+            "member_status": ["churned" if pd.notna(c) else "active" for c in cancellation_dates],
+            "cancellation_date": cancellation_dates,
+            "gender": rng.choice(["female", "male", "non_binary", "not_provided"], member_count, p=[0.42, 0.43, 0.04, 0.11]),
+            "acquisition_channel": rng.choice(["organic", "paid_social", "referral", "retail_partner", "performance_event"], member_count, p=[0.30, 0.26, 0.18, 0.14, 0.12]),
             "primary_goal": rng.choice(["sleep", "fitness", "stress", "longevity"], member_count, p=[0.28, 0.34, 0.20, 0.18]),
             "age_band": rng.choice(["18-24", "25-34", "35-44", "45-54", "55+"], member_count, p=[0.12, 0.38, 0.28, 0.15, 0.07]),
         }
@@ -60,6 +83,8 @@ def build_events(members: pd.DataFrame, days: int, rng: np.random.Generator) -> 
         engagement_bias = {"trial": -2.5, "monthly": 0.5, "annual": 2.0}[member.plan_type]
 
         for date in dates:
+            if pd.notna(member.cancellation_date) and date > pd.Timestamp(member.cancellation_date):
+                continue
             weekday_training = 1 if date.dayofweek in [0, 2, 4, 5] else 0
             strain = float(np.clip(rng.normal(9 + weekday_training * 2, 3), 1, 21))
             sleep_minutes = int(np.clip(rng.normal(435 - strain * 3, 55), 240, 610))
