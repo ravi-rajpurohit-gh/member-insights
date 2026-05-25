@@ -60,6 +60,6 @@ The Streamlit app uses a neutral health-and-performance analytics visual languag
 - Regenerate data: `python generate_synthetic_data.py`
 - Run quality checks: `python tests/run_quality_checks.py`
 - Run app: `streamlit run app.py`
-- Confirm the dashboard tabs render: Member Insights, Data Platform Health, Metric Dictionary
-- Confirm Growth & Retention and Insights Assistant render and answer from current metrics
+- Confirm the dashboard tabs render: Growth & Retention, Performance Signals, Data Platform Health, Metric Dictionary, Insights Assistant
+- Confirm Insights Assistant answers from current modeled metrics
 - Confirm all quality checks pass before sharing or deploying

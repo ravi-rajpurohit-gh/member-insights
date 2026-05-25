@@ -90,10 +90,14 @@ flowchart LR
     B --> E["fct_member_day"]
     D --> E
     E --> F["agg_cohort_daily"]
-    F --> G["Streamlit Member Insights"]
-    F --> H["AI-assisted metric explanation"]
-    I["Quality checks"] --> G
+    D --> L["agg_member_lifecycle"]
+    F --> G["Performance Signals"]
+    L --> R["Growth & Retention"]
+    F --> H["Insights Assistant"]
+    L --> H
+    I["Quality checks"] --> P["Data Platform Health"]
     J["metric_dictionary"] --> H
+    K["model_inventory"] --> P
 ```
 
 ## Project Structure
@@ -103,13 +107,13 @@ member-insights/
   app.py
   generate_synthetic_data.py
   requirements.txt
-  docs/PROJECT_TRACKER.md
+  CHANGELOG.md
+  docs/ENGINEERING_NOTES.md
   sql/01_build_models.sql
   tests/run_quality_checks.py
+  .github/workflows/keep-alive.yml
   data/
 ```
-
-Track goals, decisions, and progress in [docs/PROJECT_TRACKER.md](docs/PROJECT_TRACKER.md).
 
 Engineering design notes live in [docs/ENGINEERING_NOTES.md](docs/ENGINEERING_NOTES.md), and release history is tracked in [CHANGELOG.md](CHANGELOG.md).
 
@@ -131,15 +135,18 @@ The project includes checks for:
 - recovery score bounds,
 - heart-rate bounds,
 - one-row-per-member-per-day fact grain,
-- and recent data freshness.
+- recent data freshness,
+- accepted member status and gender values,
+- lifecycle rate bounds,
+- and model inventory population.
 
 ## 90-Second Walkthrough
 
 1. "I built this as a small version of a member-insights platform: raw wearable and app events becoming reliable product analytics."
-2. "The model starts with immutable event data, joins member dimensions, then creates a member-day fact table and cohort aggregate mart."
-3. "The dashboard shows recovery, sleep, strain, engagement, and low-recovery risk by cohort, while the engineering tab shows freshness and quality checks."
-4. "The AI explanation is deliberately governed. It explains metric movement from curated aggregates and definitions instead of querying raw member data freely."
-5. "In production I would move this to Kafka/Spark/Snowflake/dbt, add orchestration and observability, and treat data quality as part of the product experience."
+2. "The model starts with immutable event data, joins member dimensions, then creates member-day facts, cohort aggregates, and lifecycle marts."
+3. "The dashboard answers growth, retention, subscription continuity, recovery, sleep, strain, engagement, and platform-health questions from governed tables."
+4. "The assistant is deliberately governed. It answers from curated analytical functions and metric definitions instead of querying raw member data freely."
+5. "In production I would move this to Kafka/Spark/Snowflake/dbt, add orchestration and observability, and treat data quality and metric governance as part of the product experience."
 
 ## What This Demonstrates About My Approach
 
