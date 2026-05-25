@@ -6,10 +6,12 @@
 - Improved experiment visualization with metric selector and baseline/release-candidate terminology.
 - Added synthetic experiment assignment data and experiment marts.
 - Added optional local LLM interpretation in Insights Assistant using Ollama through an OpenAI-compatible local endpoint.
+- Added Ollama availability checks and setup guidance so the assistant falls back cleanly when the local runtime is not running.
 - Added token/latency/cost metadata display for LLM interpretation when available.
 - Added Growth & Retention analytics for new members, retention rate, subscription continuity, acquisition channels, gender, plan, and cohort filters.
 - Added governed Insights Assistant powered by curated analytical functions instead of free-form SQL.
 - Expanded Data Platform Health with freshness, lifecycle segments, model inventory, and additional data quality checks.
+- Refined Data Platform Health KPI cards into a balanced grid and clamped synthetic same-day freshness at zero hours.
 - Added GitHub Actions keep-alive workflow for Streamlit Community Cloud.
 - Redesigned Streamlit UI with a neutral performance analytics dashboard.
 - Added status-ring metric cards for recovery, sleep, strain, low-recovery risk, pipeline status, raw events, member days, and quality pass rate.

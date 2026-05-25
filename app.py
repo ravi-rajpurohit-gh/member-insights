@@ -7,9 +7,12 @@ serve both analytics consumers and the engineers responsible for metric trust.
 
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 import altair as alt
@@ -601,6 +604,24 @@ def llm_interpretation(prompt: str, grounded_answer: str, context: dict[str, obj
     return response.choices[0].message.content or grounded_answer, metadata
 
 
+def check_ollama_status() -> tuple[bool, str]:
+    """Return whether the local Ollama runtime is reachable before calling it."""
+    try:
+        with urllib.request.urlopen("http://localhost:11434/api/tags", timeout=0.8) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+    except (urllib.error.URLError, TimeoutError, OSError):
+        return False, "Local Ollama is not reachable. Start it with `ollama serve` after installing Ollama."
+    except json.JSONDecodeError:
+        return False, "Local Ollama responded, but the model registry response was not readable."
+
+    models = sorted(model.get("name", "") for model in payload.get("models", []) if model.get("name"))
+    if any(model.startswith("llama3.2") for model in models):
+        return True, "Connected to local Ollama. `llama3.2` is available for interpretation."
+    if models:
+        return True, f"Connected to local Ollama. Available models: {', '.join(models[:3])}."
+    return False, "Ollama is running, but no local models are installed. Run `ollama pull llama3.2`."
+
+
 st.set_page_config(page_title="Member Insights", layout="wide", initial_sidebar_state="expanded")
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
@@ -848,20 +869,19 @@ with tab_experiment:
         )
 
 with tab_health:
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        metric_card("Pipeline", latest_run["status"].upper(), 0, quality_rate, "RUN", PALETTE["green"])
-    with col2:
-        metric_card("Raw Events", f"{latest_run['raw_events']:,}", 0, 100, "EVT", PALETTE["cyan"])
-    with col3:
-        metric_card("Freshness", f"{latest_run['freshness_hours']:.1f}h", 0, max(0, 100 - latest_run["freshness_hours"]), "FR", PALETTE["green"])
-    with col4:
-        metric_card("Quality Pass Rate", f"{quality_rate:.0f}%", 0, quality_rate, "QA", PALETTE["green"])
-    col5, col6 = st.columns(2)
-    with col5:
-        metric_card("Experiment Days", f"{latest_run['experiment_days']:,}", 0, 100, "EXP", PALETTE["purple"])
-    with col6:
-        metric_card("Modeled Tables", "10", 0, 100, "MDL", PALETTE["cyan"])
+    health_cards = [
+        ("Pipeline", latest_run["status"].upper(), quality_rate, "RUN", PALETTE["green"]),
+        ("Raw Events", f"{latest_run['raw_events']:,}", 100, "EVT", PALETTE["cyan"]),
+        ("Freshness", f"{latest_run['freshness_hours']:.1f}h", max(0, 100 - latest_run["freshness_hours"]), "FR", PALETTE["green"]),
+        ("Quality Pass Rate", f"{quality_rate:.0f}%", quality_rate, "QA", PALETTE["green"]),
+        ("Experiment Days", f"{latest_run['experiment_days']:,}", 100, "EXP", PALETTE["purple"]),
+        ("Modeled Tables", "10", 100, "MDL", PALETTE["cyan"]),
+    ]
+    for row in (health_cards[:3], health_cards[3:]):
+        cols = st.columns(3)
+        for col, (label, value, ring_value, ring_text, ring_color) in zip(cols, row):
+            with col:
+                metric_card(label, value, 0, ring_value, ring_text, ring_color)
 
     checks_display = checks.copy()
     checks_display["status"] = checks_display["passed"].map({True: "PASS", False: "FAIL"})
@@ -904,9 +924,14 @@ with tab_assistant:
     st.markdown("## Governed Insights Assistant")
     st.caption("Answers are grounded in curated analytical functions over modeled tables. Optional local Ollama mode only interprets grounded results.")
     st.caption("Local LLM mode uses Ollama through an OpenAI-compatible local endpoint. It does not make paid OpenAI API calls.")
+    ollama_ok, ollama_message = check_ollama_status()
     use_llm = st.toggle("Use local Ollama interpretation", value=False, help="Runs against local Ollama through an OpenAI-compatible endpoint. No paid OpenAI API calls are made.")
     if use_llm:
-        st.info("Local mode expects `ollama serve` and `ollama pull llama3.2`. Token usage is displayed when returned by the local server; estimated cost is $0.00.")
+        if ollama_ok:
+            st.success(f"{ollama_message} Token usage is displayed when returned by the local server; estimated cost is $0.00.")
+        else:
+            st.warning(ollama_message)
+            st.code("brew install ollama\nollama pull llama3.2\nollama serve", language="bash")
     suggestions = [
         "How many new members joined in the last 30 days?",
         "What is the retention rate?",
@@ -926,7 +951,7 @@ with tab_assistant:
             st.write(prompt)
         with st.chat_message("assistant"):
             grounded = experiment_answer(prompt, experiment_summary) if "experiment" in prompt.lower() or "algorithm" in prompt.lower() else assistant_answer(prompt, filtered_life, filtered_days)
-            if use_llm:
+            if use_llm and ollama_ok:
                 try:
                     answer, metadata = llm_interpretation(
                         prompt,
@@ -940,7 +965,9 @@ with tab_assistant:
                     with st.expander("LLM usage", expanded=False):
                         st.json(metadata)
                 except Exception as exc:
-                    st.warning(f"Local LLM unavailable. Showing governed answer instead. Detail: {exc}")
+                    st.warning(f"Local LLM became unavailable. Showing governed answer instead. Detail: {exc}")
                     st.write(grounded)
             else:
+                if use_llm and not ollama_ok:
+                    st.info("Using the governed deterministic answer until local Ollama is available.")
                 st.write(grounded)

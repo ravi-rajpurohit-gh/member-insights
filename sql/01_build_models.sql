@@ -219,7 +219,7 @@ select
     (select count(*) from agg_cohort_daily) as cohort_days,
     (select count(*) from agg_member_lifecycle) as lifecycle_segments,
     (select count(*) from agg_experiment_daily) as experiment_days,
-    (select round(date_diff('minute', max(event_ts), current_timestamp) / 60.0, 1) from stg_member_events) as freshness_hours;
+    (select greatest(0, round(date_diff('minute', max(event_ts), current_timestamp) / 60.0, 1)) from stg_member_events) as freshness_hours;
 
 create or replace table model_inventory as
 select * from (
