@@ -50,6 +50,25 @@ The experiment mart models a recovery-algorithm release as a baseline/release-ca
 
 The Streamlit app uses a neutral health-and-performance analytics visual language: dark surface, score rings, recovery/sleep/strain prominence, and green/yellow/red status semantics.
 
+### App Organization
+
+The app currently uses one Streamlit page with six tabs. That is intentional for the interview use case: the hiring manager can understand the full data product in one surface without navigating across pages. The tabs map to natural stakeholder workflows: growth, performance, experimentation, platform health, metric governance, and natural-language analysis.
+
+A multi-page Streamlit structure would make sense if this becomes a larger portfolio product or a maintained internal tool. A practical future structure would be:
+
+- `app.py` for navigation and shared page setup,
+- `pages/1_Growth_Retention.py`,
+- `pages/2_Performance_Signals.py`,
+- `pages/3_Experimentation.py`,
+- `pages/4_Platform_Health.py`,
+- `pages/5_Metric_Dictionary.py`,
+- `pages/6_Insights_Assistant.py`,
+- `src/data.py` for DuckDB access and quality checks,
+- `src/metrics.py` for governed calculations,
+- `src/ui.py` for shared CSS, cards, labels, and charts.
+
+For now, the single-page tabbed app is the better demo shape. The next refactor should separate helper modules before splitting pages, so shared state, filters, styling, and chart conventions do not get duplicated.
+
 ## Production Mapping
 
 | Local Demo | Production Equivalent |
