@@ -461,6 +461,14 @@ def option_label(value: str) -> str:
     return value.replace("_", " ").title()
 
 
+def experiment_variant_label(value: str) -> str:
+    labels = {
+        "control": "Baseline Algorithm",
+        "treatment": "Release Candidate",
+    }
+    return labels.get(value, option_label(value))
+
+
 def filtered_member_days(member_days: pd.DataFrame, cohort: str, gender: str, plan: str) -> pd.DataFrame:
     df = member_days.copy()
     if cohort != "All":
@@ -582,7 +590,7 @@ def llm_interpretation(prompt: str, grounded_answer: str, context: dict[str, obj
     latency = time.perf_counter() - started
     usage = getattr(response, "usage", None)
     metadata = {
-        "provider": "local_ollama",
+        "provider": "local_ollama_openai_compatible_api",
         "model": "llama3.2",
         "latency_s": round(latency, 2),
         "prompt_tokens": getattr(usage, "prompt_tokens", None),
@@ -770,21 +778,43 @@ with tab_experiment:
     with col4:
         metric_card("Low Recovery Delta", f"{summary['low_recovery_pct_delta']:+.2f}pp", summary["low_recovery_pct_delta"], max(0, 70 - summary["low_recovery_pct_delta"] * 5), "GRD", score_color(70 - summary["low_recovery_pct_delta"]), suffix="pp", inverse=True)
 
-    st.markdown("## Algorithm Version Trend")
-    experiment_trend = experiment_daily.melt(
-        id_vars=["event_date", "experiment_variant", "algorithm_version"],
-        value_vars=["avg_recovery", "avg_sleep_hours", "avg_app_minutes"],
-        var_name="metric",
-        value_name="value",
+    st.markdown("## Algorithm Version Comparison")
+    metric_options = {
+        "Recovery score": ("avg_recovery", "Average Recovery"),
+        "Sleep hours": ("avg_sleep_hours", "Average Sleep Hours"),
+        "App engagement minutes": ("avg_app_minutes", "Average App Minutes"),
+        "Low recovery rate": ("low_recovery_pct", "Low Recovery %"),
+    }
+    selected_metric_label = st.radio(
+        "Metric",
+        options=list(metric_options.keys()),
+        index=0,
+        horizontal=True,
     )
-    trend = alt.Chart(experiment_trend).mark_line(point=True, strokeWidth=2.4).encode(
+    selected_metric, selected_axis = metric_options[selected_metric_label]
+    experiment_trend = experiment_daily.copy()
+    experiment_trend["variant_label"] = experiment_trend["experiment_variant"].map(experiment_variant_label)
+    experiment_trend["metric_value"] = experiment_trend[selected_metric]
+    trend = alt.Chart(experiment_trend).mark_line(point=True, strokeWidth=2.8).encode(
         x=alt.X("event_date:T", title="Date"),
-        y=alt.Y("value:Q", title="Metric Value"),
-        color=alt.Color("experiment_variant:N", title="Variant", scale=alt.Scale(range=[PALETTE["muted"], PALETTE["green"]])),
-        strokeDash=alt.StrokeDash("metric:N", title="Metric"),
-        tooltip=["event_date:T", "experiment_variant:N", "algorithm_version:N", "metric:N", alt.Tooltip("value:Q", format=".2f")],
+        y=alt.Y("metric_value:Q", title=selected_axis, scale=alt.Scale(zero=False)),
+        color=alt.Color(
+            "variant_label:N",
+            title="Algorithm Group",
+            scale=alt.Scale(
+                domain=["Baseline Algorithm", "Release Candidate"],
+                range=[PALETTE["muted"], PALETTE["green"]],
+            ),
+        ),
+        tooltip=[
+            "event_date:T",
+            "variant_label:N",
+            "algorithm_version:N",
+            alt.Tooltip("metric_value:Q", title=selected_axis, format=".2f"),
+        ],
     )
     st.altair_chart(style_chart(trend, height=340), use_container_width=True)
+    st.caption("Baseline Algorithm is the existing scoring logic. Release Candidate is the algorithm update being validated against outcome and guardrail metrics.")
 
     left, right = st.columns([1, 1])
     with left:
@@ -800,6 +830,10 @@ with tab_experiment:
             )
             .round(2)
         )
+        variant_summary["algorithm_group"] = variant_summary["experiment_variant"].map(experiment_variant_label)
+        variant_summary = variant_summary[
+            ["algorithm_group", "algorithm_version", "active_members", "avg_recovery", "avg_sleep_hours", "avg_app_minutes", "low_recovery_pct"]
+        ]
         st.dataframe(variant_summary, use_container_width=True, hide_index=True)
     with right:
         st.markdown(
@@ -807,7 +841,7 @@ with tab_experiment:
 <div class="panel">
   <div class="panel-title">Experiment Readout</div>
   <div class="insight-copy">{experiment_answer('summary', experiment_summary)}</div>
-  <div class="caption-mono">Control = recovery_v1 · Treatment = recovery_v2 · Guardrail = low-recovery rate.</div>
+  <div class="caption-mono">Baseline = recovery_v1 · Release Candidate = recovery_v2 · Guardrail = low-recovery rate.</div>
 </div>
 """,
             unsafe_allow_html=True,
@@ -868,8 +902,11 @@ with tab_dictionary:
 
 with tab_assistant:
     st.markdown("## Governed Insights Assistant")
-    st.caption("Answers are grounded in curated analytical functions over modeled tables. Optional local LLM mode only interprets grounded results.")
-    use_llm = st.toggle("Use local LLM interpretation", value=False, help="Requires Ollama running locally with `llama3.2`. The app falls back to governed deterministic answers if unavailable.")
+    st.caption("Answers are grounded in curated analytical functions over modeled tables. Optional local Ollama mode only interprets grounded results.")
+    st.caption("Local LLM mode uses Ollama through an OpenAI-compatible local endpoint. It does not make paid OpenAI API calls.")
+    use_llm = st.toggle("Use local Ollama interpretation", value=False, help="Runs against local Ollama through an OpenAI-compatible endpoint. No paid OpenAI API calls are made.")
+    if use_llm:
+        st.info("Local mode expects `ollama serve` and `ollama pull llama3.2`. Token usage is displayed when returned by the local server; estimated cost is $0.00.")
     suggestions = [
         "How many new members joined in the last 30 days?",
         "What is the retention rate?",

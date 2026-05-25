@@ -38,11 +38,13 @@ The "AI-assisted insight" panel is deterministic by design. It summarizes metric
 
 ### Governed Insights Assistant
 
-The assistant is function-backed rather than free-form. It answers common stakeholder questions using curated metrics and modeled tables. It also has an optional local LLM interpretation mode powered by Ollama through the OpenAI-compatible SDK. The model only receives the grounded answer and context; it does not execute SQL or invent metrics.
+The assistant is function-backed rather than free-form. It answers common stakeholder questions using curated metrics and modeled tables. It also has an optional local LLM interpretation mode powered by Ollama through an OpenAI-compatible local endpoint. The model only receives the grounded answer and context; it does not execute SQL or invent metrics. The OpenAI SDK is used as a client interface, not as a requirement to use OpenAI's paid hosted models.
+
+LangChain is intentionally not included yet. The current assistant needs a small, inspectable tool boundary rather than a full orchestration framework. If the assistant grows to multiple retrieval sources, memory, evaluation traces, or provider routing, LangChain or LangGraph would become more useful.
 
 ### Experimentation & Algorithm Releases
 
-The experiment mart models a recovery-algorithm release as a control/treatment comparison. It tracks recovery lift, sleep lift, engagement lift, and low-recovery guardrail movement. This mirrors the kind of analytics internal product and data teams need when validating algorithm updates, feature flags, and phased rollouts.
+The experiment mart models a recovery-algorithm release as a baseline/release-candidate comparison. Internally this follows standard control/treatment experimentation semantics, but the product UI uses more business-readable language. It tracks recovery lift, sleep lift, engagement lift, and low-recovery guardrail movement. This mirrors the kind of analytics internal product and data teams need when validating algorithm updates, feature flags, and phased rollouts.
 
 ### Product-Like UI
 
@@ -58,7 +60,7 @@ The Streamlit app uses a neutral health-and-performance analytics visual languag
 | Python quality checks | dbt tests, Great Expectations, warehouse assertions |
 | Streamlit dashboard | Internal analytics app, BI dashboard, or product analytics surface |
 | Deterministic AI copy | Approved LLM over governed metric marts |
-| Optional Ollama interpretation | Low-cost internal LLM summarization over grounded metrics |
+| Optional Ollama interpretation | Low-cost local LLM summarization over grounded metrics |
 | GitHub Actions workflow | Scheduled availability checks for hosted Streamlit apps |
 
 ## Review Checklist

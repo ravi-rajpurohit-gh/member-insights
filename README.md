@@ -33,7 +33,7 @@ The app has five views:
 
 - **Growth & Retention:** new members, retention rate, subscription continuity, acquisition channels, and segmentation by plan/gender/cohort.
 - **Performance Signals:** cohort trends for recovery, sleep, strain, engagement, low-recovery risk, and a deterministic AI-style explanation of metric movement.
-- **Experimentation:** algorithm-release comparison for control/treatment variants, recovery lift, sleep lift, engagement lift, and guardrail movement.
+- **Experimentation:** algorithm-release comparison for baseline vs release-candidate groups, recovery lift, sleep lift, engagement lift, and guardrail movement.
 - **Data Platform Health:** pipeline status, table row counts, freshness, model inventory, and quality-check pass rate.
 - **Metric Dictionary:** governed definitions and source logic for the metrics shown in the dashboard.
 - **Insights Assistant:** governed Q&A over curated analytical functions for growth, retention, subscription continuity, segmentation, experimentation, and performance signals, with optional local LLM interpretation.
@@ -81,7 +81,7 @@ Mirrors a production environment with:
 - **AWS:** S3 landing zones, Glue catalog, Lambda/Step Functions for lightweight workflows, and CloudWatch for logs and alerts.
 - **Observability tooling:** freshness, schema drift, row-count anomalies, failed checks, and metric SLAs.
 - **Approved LLM tooling:** natural-language explanations over curated aggregate tables and documented metric definitions.
-- **Local LLM option:** Ollama + OpenAI-compatible SDK for low-cost interpretation of grounded analytical results.
+- **Local LLM option:** Ollama through an OpenAI-compatible local endpoint for low-cost interpretation of grounded analytical results.
 - **GitHub Actions keep-alive:** scheduled app wake-up checks for Streamlit Community Cloud deployments.
 
 ## Architecture
@@ -138,6 +138,8 @@ brew install ollama
 ollama pull llama3.2
 ollama serve
 ```
+
+The app uses the OpenAI SDK as a client for Ollama's OpenAI-compatible local endpoint. This does not call OpenAI's paid API unless the code is explicitly changed to point at OpenAI-hosted models.
 
 ## Quality Checks
 
