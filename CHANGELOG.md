@@ -2,6 +2,7 @@
 
 ## 2026-05-25
 
+- Reworked the assistant conversation UI into reliable bordered message blocks and hid prompt suggestions after a conversation starts.
 - Upgraded the Insights Assistant into a governed visual analyst that can return text plus contextual charts.
 - Replaced default Streamlit chat avatars with branded analyst/user message cards.
 - Expanded assistant trace metadata with API call count and zero-cost display while preserving estimated token, row, and latency details.

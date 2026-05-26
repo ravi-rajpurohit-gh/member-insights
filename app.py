@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import html
 from typing import Optional
 
 import altair as alt
@@ -85,31 +84,6 @@ latest = filtered.iloc[-1]
 previous = filtered.iloc[-2]
 lifecycle_kpis = lifecycle_summary(filtered_life)
 latest_date = pd.to_datetime(filtered["event_date"].max()).strftime("%b %d, %Y")
-
-
-def render_assistant_message(role: str, content: str, mode: Optional[str] = None) -> None:
-    """Render branded assistant messages without Streamlit's default chat avatars."""
-    is_user = role == "user"
-    css_role = "user" if is_user else "assistant"
-    badge = "YOU" if is_user else "MI"
-    role_label = "You" if is_user else "Member Insights Analyst"
-    mode_label = mode or ("Question" if is_user else "Governed visual analysis")
-    safe_content = html.escape(content).replace("\n", "<br>")
-    st.markdown(
-        f"""
-<div class="assistant-message {css_role}">
-  <div class="assistant-meta">
-    <div class="assistant-badge">{badge}</div>
-    <div>
-      <div class="assistant-role">{role_label}</div>
-      <div class="assistant-mode">{mode_label}</div>
-    </div>
-  </div>
-  <div class="assistant-content">{safe_content}</div>
-</div>
-""",
-        unsafe_allow_html=True,
-    )
 
 
 def assistant_visual(selected_tool: str) -> Optional[alt.Chart]:
@@ -215,6 +189,44 @@ def assistant_visual(selected_tool: str) -> Optional[alt.Chart]:
         )
 
     return None
+
+
+def render_analysis_trace(metadata: dict[str, object]) -> None:
+    """Show transparent execution metadata for an assistant response."""
+    with st.expander("Analysis trace", expanded=False):
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Tool", option_label(str(metadata["selected_tool"])))
+        c2.metric("Estimated tokens", f"{metadata['total_tokens_estimated']:,}")
+        c3.metric("Rows considered", f"{metadata['rows_considered']:,}")
+        c4.metric("Latency", f"{metadata['latency_s']:.3f}s")
+        c5, c6 = st.columns(2)
+        c5.metric("API calls", f"{metadata['api_calls']}")
+        c6.metric("API cost", f"${metadata['api_cost_usd']:.2f}")
+        st.json(metadata)
+
+
+def render_assistant_turn(message: dict[str, object]) -> None:
+    """Render a production-style assistant turn with reliable Streamlit layout."""
+    role = str(message["role"])
+    content = str(message["content"])
+    usage = message.get("usage")
+
+    if role == "user":
+        _, user_col = st.columns([0.28, 0.72])
+        with user_col:
+            with st.container(border=True):
+                st.caption("You")
+                st.markdown(content)
+        return
+
+    with st.container(border=True):
+        st.caption("Member Insights Analyst · Governed visual analysis")
+        st.markdown(content)
+        if isinstance(usage, dict):
+            chart = assistant_visual(str(usage["selected_tool"]))
+            if chart is not None:
+                st.altair_chart(style_chart(chart, height=300), use_container_width=True)
+            render_analysis_trace(usage)
 
 st.markdown(
     f"""
@@ -557,42 +569,24 @@ with tab_assistant:
     if "assistant_messages" not in st.session_state:
         st.session_state["assistant_messages"] = []
 
-    cols = st.columns(2)
-    for idx, suggestion in enumerate(suggestions):
-        if cols[idx % 2].button(suggestion, use_container_width=True):
-            st.session_state["assistant_prompt"] = suggestion
+    if not st.session_state["assistant_messages"]:
+        cols = st.columns(2)
+        for idx, suggestion in enumerate(suggestions):
+            if cols[idx % 2].button(suggestion, use_container_width=True):
+                st.session_state["assistant_prompt"] = suggestion
 
     if st.button("Clear assistant history", use_container_width=False):
         st.session_state["assistant_messages"] = []
         st.rerun()
 
     for message in st.session_state["assistant_messages"]:
-        usage = message.get("usage")
-        render_assistant_message(
-            message["role"],
-            message["content"],
-            option_label(usage["mode"]) if usage and message["role"] == "assistant" else None,
-        )
-        if usage and message["role"] == "assistant":
-            chart = assistant_visual(str(usage["selected_tool"]))
-            if chart is not None:
-                st.altair_chart(style_chart(chart, height=300), use_container_width=True)
-            with st.expander("Analysis trace", expanded=False):
-                c1, c2, c3, c4 = st.columns(4)
-                c1.metric("Tool", option_label(usage["selected_tool"]))
-                c2.metric("Estimated tokens", f"{usage['total_tokens_estimated']:,}")
-                c3.metric("Rows considered", f"{usage['rows_considered']:,}")
-                c4.metric("Latency", f"{usage['latency_s']:.3f}s")
-                c5, c6 = st.columns(2)
-                c5.metric("API calls", f"{usage['api_calls']}")
-                c6.metric("API cost", f"${usage['api_cost_usd']:.2f}")
-                st.json(usage)
+        render_assistant_turn(message)
 
     prompt = st.chat_input("Ask about member growth, retention, subscription continuity, experiments, platform health, or metric definitions...")
     prompt = prompt or st.session_state.pop("assistant_prompt", None)
     if prompt:
-        st.session_state["assistant_messages"].append({"role": "user", "content": prompt})
-        render_assistant_message("user", prompt)
+        user_message = {"role": "user", "content": prompt}
+        st.session_state["assistant_messages"].append(user_message)
         answer, metadata = governed_assistant_response(
             prompt,
             filtered_life,
@@ -603,18 +597,6 @@ with tab_assistant:
             query("select * from metric_dictionary order by domain, metric_name"),
             {"member_segment": selected_cohort, "gender": selected_gender, "plan": selected_plan},
         )
-        render_assistant_message("assistant", answer, option_label(metadata["mode"]))
-        chart = assistant_visual(str(metadata["selected_tool"]))
-        if chart is not None:
-            st.altair_chart(style_chart(chart, height=300), use_container_width=True)
-        with st.expander("Analysis trace", expanded=False):
-            c1, c2, c3, c4 = st.columns(4)
-            c1.metric("Tool", option_label(metadata["selected_tool"]))
-            c2.metric("Estimated tokens", f"{metadata['total_tokens_estimated']:,}")
-            c3.metric("Rows considered", f"{metadata['rows_considered']:,}")
-            c4.metric("Latency", f"{metadata['latency_s']:.3f}s")
-            c5, c6 = st.columns(2)
-            c5.metric("API calls", f"{metadata['api_calls']}")
-            c6.metric("API cost", f"${metadata['api_cost_usd']:.2f}")
-            st.json(metadata)
-        st.session_state["assistant_messages"].append({"role": "assistant", "content": answer, "usage": metadata})
+        assistant_message = {"role": "assistant", "content": answer, "usage": metadata}
+        st.session_state["assistant_messages"].append(assistant_message)
+        st.rerun()
