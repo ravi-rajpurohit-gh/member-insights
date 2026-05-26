@@ -57,6 +57,7 @@ timeline
 | Use dbt-style SQL models | Makes table grain, transformation logic, and warehouse migration paths easy to discuss and inspect. | Does not include a full dbt project scaffold yet. |
 | Use generated privacy-safe data | Preserves realistic analytical shape without using private company, product, or member data. | Metrics are representative rather than sourced from a real production system. |
 | Build a governed assistant router | Gives users natural-language answers without hosted API limits, local model setup, or hallucinated metrics. | It is deterministic and tool-routed rather than a fully generative assistant. |
+| Add visual responses to the assistant | Makes natural-language analytics feel more complete: the analyst can answer with text, charts, and trace metadata. | Visual generation is tied to approved analytical routes instead of arbitrary chart requests. |
 | Add experimentation analytics | Shows how member insights can support algorithm-release validation, guardrails, and product analytics. | Statistical inference is intentionally lightweight in the current version. |
 | Treat platform health as a first-class tab | Shows that metric trust depends on pipeline freshness, quality gates, and model inventory. | Uses local audit tables instead of external observability systems. |
 | Keep creator attribution in the sidebar | Makes ownership visible without making the analytics surface feel like a portfolio banner. | Attribution is quieter than a main-page footer. |
@@ -125,5 +126,5 @@ The project now operates as a compact member-insights platform with:
 - quality gates and platform-health visibility,
 - experimentation support for algorithm-release analysis,
 - governed metric definitions,
-- natural-language analytics with traceable tool routing,
+- natural-language analytics with traceable tool routing and governed visual responses,
 - and maintainable code organization across `app.py`, `src/data.py`, `src/metrics.py`, and `src/ui.py`.

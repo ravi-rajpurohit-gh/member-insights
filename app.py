@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import html
+from typing import Optional
+
 import altair as alt
 import pandas as pd
 import streamlit as st
@@ -82,6 +85,136 @@ latest = filtered.iloc[-1]
 previous = filtered.iloc[-2]
 lifecycle_kpis = lifecycle_summary(filtered_life)
 latest_date = pd.to_datetime(filtered["event_date"].max()).strftime("%b %d, %Y")
+
+
+def render_assistant_message(role: str, content: str, mode: Optional[str] = None) -> None:
+    """Render branded assistant messages without Streamlit's default chat avatars."""
+    is_user = role == "user"
+    css_role = "user" if is_user else "assistant"
+    badge = "YOU" if is_user else "MI"
+    role_label = "You" if is_user else "Member Insights Analyst"
+    mode_label = mode or ("Question" if is_user else "Governed visual analysis")
+    safe_content = html.escape(content).replace("\n", "<br>")
+    st.markdown(
+        f"""
+<div class="assistant-message {css_role}">
+  <div class="assistant-meta">
+    <div class="assistant-badge">{badge}</div>
+    <div>
+      <div class="assistant-role">{role_label}</div>
+      <div class="assistant-mode">{mode_label}</div>
+    </div>
+  </div>
+  <div class="assistant-content">{safe_content}</div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+
+def assistant_visual(selected_tool: str) -> Optional[alt.Chart]:
+    """Return a governed visual for assistant routes that benefit from one."""
+    if selected_tool == "summarize_growth":
+        visual_data = filtered_life.groupby("acquisition_channel", as_index=False)["new_members_30d"].sum()
+        visual_data["channel"] = visual_data["acquisition_channel"].map(option_label)
+        return alt.Chart(visual_data).mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
+            x=alt.X("channel:N", title=None, sort="-y", axis=alt.Axis(labelAngle=-35)),
+            y=alt.Y("new_members_30d:Q", title="New Members 30D"),
+            color=alt.Color("channel:N", legend=None, scale=alt.Scale(range=[PALETTE["green"], PALETTE["cyan"], PALETTE["purple"], PALETTE["yellow"], PALETTE["red"]])),
+            tooltip=[
+                alt.Tooltip("channel:N", title="Acquisition Channel"),
+                alt.Tooltip("new_members_30d:Q", title="New Members 30D", format=","),
+            ],
+        )
+
+    if selected_tool == "summarize_retention":
+        visual_data = filtered_life.groupby("cohort", as_index=False).apply(
+            lambda d: pd.Series({"retention_rate_pct": lifecycle_summary(d)["retention_rate_pct"]})
+        )
+        visual_data["member_segment"] = visual_data["cohort"].map(option_label)
+        return alt.Chart(visual_data).mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
+            x=alt.X("member_segment:N", title=None, sort="-y", axis=alt.Axis(labelAngle=-35)),
+            y=alt.Y("retention_rate_pct:Q", title="Retention Rate 30D (%)"),
+            color=alt.Color("retention_rate_pct:Q", legend=None, scale=alt.Scale(range=[PALETTE["red"], PALETTE["yellow"], PALETTE["green"]])),
+            tooltip=[
+                alt.Tooltip("member_segment:N", title="Member Segment"),
+                alt.Tooltip("retention_rate_pct:Q", title="Retention Rate 30D", format=".1f"),
+            ],
+        )
+
+    if selected_tool in {"summarize_subscription_continuity", "break_down_members_by_gender"}:
+        visual_data = filtered_life.groupby(["plan_type", "gender"], as_index=False).apply(
+            lambda d: pd.Series({"subscription_continuity_pct": lifecycle_summary(d)["subscription_continuity_pct"], "members": d["total_members"].sum()})
+        )
+        visual_data["plan"] = visual_data["plan_type"].map(option_label)
+        visual_data["gender_label"] = visual_data["gender"].map(option_label)
+        return alt.Chart(visual_data).mark_rect(cornerRadius=3).encode(
+            x=alt.X("plan:N", title="Plan", axis=alt.Axis(labelAngle=-35)),
+            y=alt.Y("gender_label:N", title="Gender"),
+            color=alt.Color("subscription_continuity_pct:Q", title="Continuity 30D (%)", scale=alt.Scale(range=[PALETTE["red"], PALETTE["yellow"], PALETTE["green"]])),
+            tooltip=[
+                alt.Tooltip("plan:N", title="Plan"),
+                alt.Tooltip("gender_label:N", title="Gender"),
+                alt.Tooltip("subscription_continuity_pct:Q", title="Subscription Continuity 30D", format=".1f"),
+                alt.Tooltip("members:Q", title="Members", format=","),
+            ],
+        )
+
+    if selected_tool in {"summarize_performance_signals", "summarize_member_segment"}:
+        visual_data = filtered.melt(
+            id_vars=["event_date"],
+            value_vars=["avg_recovery", "avg_strain", "low_recovery_pct"],
+            var_name="metric",
+            value_name="value",
+        )
+        visual_data["metric_label"] = visual_data["metric"].map(metric_label)
+        return alt.Chart(visual_data).mark_line(point=True, strokeWidth=2.5).encode(
+            x=alt.X("event_date:T", title="Date"),
+            y=alt.Y("value:Q", title="Score"),
+            color=alt.Color("metric_label:N", title=None, scale=alt.Scale(range=[PALETTE["green"], PALETTE["purple"], PALETTE["red"]])),
+            tooltip=[
+                alt.Tooltip("event_date:T", title="Date"),
+                alt.Tooltip("metric_label:N", title="Metric"),
+                alt.Tooltip("value:Q", title="Value", format=".1f"),
+            ],
+        )
+
+    if selected_tool == "summarize_algorithm_experiment":
+        summary_row = experiment_summary.iloc[0]
+        visual_data = pd.DataFrame(
+            [
+                {"metric": "Recovery Lift", "value": summary_row["recovery_lift"], "unit": "points"},
+                {"metric": "Sleep Lift", "value": summary_row["sleep_hours_lift"], "unit": "hours"},
+                {"metric": "Engagement Lift", "value": summary_row["app_minutes_lift"], "unit": "minutes"},
+                {"metric": "Low Recovery Delta", "value": summary_row["low_recovery_pct_delta"], "unit": "percentage points"},
+            ]
+        )
+        return alt.Chart(visual_data).mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
+            x=alt.X("metric:N", title=None, sort=None, axis=alt.Axis(labelAngle=-25)),
+            y=alt.Y("value:Q", title="Lift / Delta"),
+            color=alt.Color("value:Q", legend=None, scale=alt.Scale(range=[PALETTE["red"], PALETTE["yellow"], PALETTE["green"]])),
+            tooltip=[
+                alt.Tooltip("metric:N", title="Metric"),
+                alt.Tooltip("value:Q", title="Value", format="+.2f"),
+                alt.Tooltip("unit:N", title="Unit"),
+            ],
+        )
+
+    if selected_tool == "summarize_platform_health":
+        visual_data = checks.copy()
+        visual_data["status"] = visual_data["passed"].map({True: "Passed", False: "Failed"})
+        visual_data["check_label"] = visual_data["check_name"].map(option_label)
+        return alt.Chart(visual_data).mark_bar(cornerRadiusTopLeft=4, cornerRadiusTopRight=4).encode(
+            x=alt.X("check_label:N", title=None, axis=alt.Axis(labelAngle=-35)),
+            y=alt.Y("count():Q", title="Checks"),
+            color=alt.Color("status:N", title=None, scale=alt.Scale(domain=["Passed", "Failed"], range=[PALETTE["green"], PALETTE["red"]])),
+            tooltip=[
+                alt.Tooltip("check_label:N", title="Quality Check"),
+                alt.Tooltip("status:N", title="Status"),
+            ],
+        )
+
+    return None
 
 st.markdown(
     f"""
@@ -412,7 +545,7 @@ with tab_dictionary:
 
 with tab_assistant:
     st.markdown("## Governed Insights Assistant")
-    st.caption("Ask natural-language questions. The assistant routes each question to governed analytical functions, so answers stay accurate without external API calls or usage limits.")
+    st.caption("Ask natural-language questions. The analyst routes each question to governed functions, returns precise answers, and adds visuals when the question benefits from one.")
     suggestions = [
         "How many new members joined in the last 30 days?",
         "What is the retention rate?",
@@ -434,41 +567,54 @@ with tab_assistant:
         st.rerun()
 
     for message in st.session_state["assistant_messages"]:
-        with st.chat_message(message["role"]):
-            st.write(message["content"])
-            if message.get("usage"):
-                usage = message["usage"]
-                with st.expander("Analysis trace", expanded=False):
-                    c1, c2, c3, c4 = st.columns(4)
-                    c1.metric("Tool", option_label(usage["selected_tool"]))
-                    c2.metric("Estimated tokens", f"{usage['total_tokens_estimated']:,}")
-                    c3.metric("Rows considered", f"{usage['rows_considered']:,}")
-                    c4.metric("Latency", f"{usage['latency_s']:.3f}s")
-                    st.json(usage)
+        usage = message.get("usage")
+        render_assistant_message(
+            message["role"],
+            message["content"],
+            option_label(usage["mode"]) if usage and message["role"] == "assistant" else None,
+        )
+        if usage and message["role"] == "assistant":
+            chart = assistant_visual(str(usage["selected_tool"]))
+            if chart is not None:
+                st.altair_chart(style_chart(chart, height=300), use_container_width=True)
+            with st.expander("Analysis trace", expanded=False):
+                c1, c2, c3, c4 = st.columns(4)
+                c1.metric("Tool", option_label(usage["selected_tool"]))
+                c2.metric("Estimated tokens", f"{usage['total_tokens_estimated']:,}")
+                c3.metric("Rows considered", f"{usage['rows_considered']:,}")
+                c4.metric("Latency", f"{usage['latency_s']:.3f}s")
+                c5, c6 = st.columns(2)
+                c5.metric("API calls", f"{usage['api_calls']}")
+                c6.metric("API cost", f"${usage['api_cost_usd']:.2f}")
+                st.json(usage)
 
     prompt = st.chat_input("Ask about member growth, retention, subscription continuity, experiments, platform health, or metric definitions...")
     prompt = prompt or st.session_state.pop("assistant_prompt", None)
     if prompt:
         st.session_state["assistant_messages"].append({"role": "user", "content": prompt})
-        with st.chat_message("user"):
-            st.write(prompt)
-        with st.chat_message("assistant"):
-            answer, metadata = governed_assistant_response(
-                prompt,
-                filtered_life,
-                filtered_days,
-                experiment_summary,
-                checks,
-                latest_run,
-                query("select * from metric_dictionary order by domain, metric_name"),
-                {"member_segment": selected_cohort, "gender": selected_gender, "plan": selected_plan},
-            )
-            st.write(answer)
-            with st.expander("Analysis trace", expanded=False):
-                c1, c2, c3, c4 = st.columns(4)
-                c1.metric("Tool", option_label(metadata["selected_tool"]))
-                c2.metric("Estimated tokens", f"{metadata['total_tokens_estimated']:,}")
-                c3.metric("Rows considered", f"{metadata['rows_considered']:,}")
-                c4.metric("Latency", f"{metadata['latency_s']:.3f}s")
-                st.json(metadata)
+        render_assistant_message("user", prompt)
+        answer, metadata = governed_assistant_response(
+            prompt,
+            filtered_life,
+            filtered_days,
+            experiment_summary,
+            checks,
+            latest_run,
+            query("select * from metric_dictionary order by domain, metric_name"),
+            {"member_segment": selected_cohort, "gender": selected_gender, "plan": selected_plan},
+        )
+        render_assistant_message("assistant", answer, option_label(metadata["mode"]))
+        chart = assistant_visual(str(metadata["selected_tool"]))
+        if chart is not None:
+            st.altair_chart(style_chart(chart, height=300), use_container_width=True)
+        with st.expander("Analysis trace", expanded=False):
+            c1, c2, c3, c4 = st.columns(4)
+            c1.metric("Tool", option_label(metadata["selected_tool"]))
+            c2.metric("Estimated tokens", f"{metadata['total_tokens_estimated']:,}")
+            c3.metric("Rows considered", f"{metadata['rows_considered']:,}")
+            c4.metric("Latency", f"{metadata['latency_s']:.3f}s")
+            c5, c6 = st.columns(2)
+            c5.metric("API calls", f"{metadata['api_calls']}")
+            c6.metric("API cost", f"${metadata['api_cost_usd']:.2f}")
+            st.json(metadata)
         st.session_state["assistant_messages"].append({"role": "assistant", "content": answer, "usage": metadata})

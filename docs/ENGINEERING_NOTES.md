@@ -40,6 +40,8 @@ The "AI-assisted insight" panel is deterministic by design. It summarizes metric
 
 The assistant is function-backed rather than free-form. It answers common stakeholder questions using curated metrics and modeled tables, then displays an analysis trace with the selected analytical function, estimated tokens, rows considered, latency, and zero API cost. This avoids hosted API limits and local model setup while showing the production pattern: natural language routed to governed tools instead of arbitrary SQL or invented metrics.
 
+The assistant now behaves as a governed visual analyst: the same routed answer can attach a contextual chart for growth, retention, subscription continuity, performance signals, experimentation, or platform health. This keeps the product experience close to modern AI analytics tools while preserving deterministic execution, explainable tool selection, and no dependency on paid API quotas.
+
 LangChain is intentionally not included yet. The current assistant needs a small, inspectable tool boundary rather than a full orchestration framework. If the assistant grows to multiple retrieval sources, memory, evaluation traces, or provider routing, LangChain or LangGraph would become more useful.
 
 ### Experimentation & Algorithm Releases

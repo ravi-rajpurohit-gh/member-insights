@@ -29,14 +29,14 @@ This application is built for the kinds of teams that need to make member behavi
 
 ## What It Shows
 
-The app has five views:
+The app has six views:
 
 - **Growth & Retention:** new members, retention rate, subscription continuity, acquisition channels, and segmentation by plan/gender/cohort.
 - **Performance Signals:** cohort trends for recovery, sleep, strain, engagement, low-recovery risk, and a deterministic AI-style explanation of metric movement.
 - **Experimentation:** algorithm-release comparison for baseline vs release-candidate groups, recovery lift, sleep lift, engagement lift, and guardrail movement.
 - **Data Platform Health:** pipeline status, table row counts, freshness, model inventory, and quality-check pass rate.
 - **Metric Dictionary:** governed definitions and source logic for the metrics shown in the dashboard.
-- **Insights Assistant:** governed natural-language Q&A over curated analytical functions for growth, retention, subscription continuity, segmentation, experimentation, platform health, metric definitions, and performance signals.
+- **Insights Assistant:** governed natural-language Q&A over curated analytical functions, with contextual chart responses and trace metadata for growth, retention, subscription continuity, segmentation, experimentation, platform health, metric definitions, and performance signals.
 
 The underlying model covers common analytical table patterns:
 
@@ -80,7 +80,7 @@ Mirrors a production environment with:
 - **dbt:** model DAG, tests, documentation, metric contracts, and CI checks.
 - **AWS:** S3 landing zones, Glue catalog, Lambda/Step Functions for lightweight workflows, and CloudWatch for logs and alerts.
 - **Observability tooling:** freshness, schema drift, row-count anomalies, failed checks, and metric SLAs.
-- **Approved AI tooling:** natural-language explanations over curated aggregate tables and documented metric definitions, with function routing before any generative interpretation.
+- **Approved AI tooling:** natural-language explanations and visual responses over curated aggregate tables and documented metric definitions, with function routing before any generative interpretation.
 - **GitHub Actions keep-alive:** scheduled app wake-up checks for Streamlit Community Cloud deployments.
 
 ## Architecture
@@ -134,7 +134,7 @@ python tests/run_quality_checks.py
 streamlit run app.py
 ```
 
-The Insights Assistant does not require hosted APIs, API keys, or local model services. It routes natural-language prompts to governed analytical functions and displays an analysis trace with selected tool, estimated tokens, rows considered, latency, and API cost.
+The Insights Assistant does not require hosted APIs, API keys, or local model services. It routes natural-language prompts to governed analytical functions, returns precise text plus contextual charts when useful, and displays an analysis trace with selected tool, estimated tokens, rows considered, latency, API calls, and API cost.
 
 ## Quality Checks
 

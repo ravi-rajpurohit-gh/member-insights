@@ -2,6 +2,9 @@
 
 ## 2026-05-25
 
+- Upgraded the Insights Assistant into a governed visual analyst that can return text plus contextual charts.
+- Replaced default Streamlit chat avatars with branded analyst/user message cards.
+- Expanded assistant trace metadata with API call count and zero-cost display while preserving estimated token, row, and latency details.
 - Enlarged the product identity label in the app header for stronger first-glance recognition.
 - Added a governed insight panel beside subscription continuity so the heatmap has a clear business interpretation.
 - Made insight/readout panel headers more visually prominent with a subtle animated highlight.
