@@ -2,6 +2,11 @@
 
 ## 2026-05-25
 
+- Enlarged the product identity label in the app header for stronger first-glance recognition.
+- Added a governed insight panel beside subscription continuity so the heatmap has a clear business interpretation.
+- Made insight/readout panel headers more visually prominent with a subtle animated highlight.
+- Moved Experimentation readout below the variant summary so the full comparison table stays visible.
+- Added sidebar attribution for Ravi Rajpurohit without interrupting the main analytics workspace.
 - Added Experimentation tab for algorithm-release control/treatment analysis with recovery, sleep, engagement, and guardrail metrics.
 - Improved experiment visualization with metric selector and baseline/release-candidate terminology.
 - Added synthetic experiment assignment data and experiment marts.

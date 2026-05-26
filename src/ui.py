@@ -142,10 +142,11 @@ div[data-baseweb="select"] > div {{
 .mi-kicker {{
     font-family: 'IBM Plex Mono', monospace;
     color: {PALETTE["green"]};
-    font-size: 0.72rem;
-    letter-spacing: 0.18em;
+    font-size: 0.9rem;
+    letter-spacing: 0.16em;
     text-transform: uppercase;
-    font-weight: 600;
+    font-weight: 800;
+    text-shadow: 0 0 18px rgba(25,229,140,0.22);
 }}
 
 .mi-title {{
@@ -272,12 +273,24 @@ div[data-baseweb="select"] > div {{
 }}
 
 .panel-title {{
-    color: {PALETTE["muted"]};
-    font-size: 0.68rem;
+    display: inline-block;
+    color: {PALETTE["green"]};
+    font-size: 0.78rem;
     font-weight: 800;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
     margin-bottom: 0.65rem;
+    background: linear-gradient(90deg, {PALETTE["green"]}, {PALETTE["cyan"]}, {PALETTE["green"]});
+    background-size: 220% auto;
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+    animation: insight-shine 7s linear infinite;
+}}
+
+@keyframes insight-shine {{
+    0% {{ background-position: 220% center; }}
+    100% {{ background-position: -220% center; }}
 }}
 
 .insight-copy {{
@@ -312,6 +325,29 @@ div[data-baseweb="select"] > div {{
     font-size: 0.78rem;
     line-height: 1.6;
     margin-top: 0.5rem;
+}}
+
+.sidebar-footer {{
+    border-top: 1px solid {PALETTE["border"]};
+    margin-top: 1.25rem;
+    padding-top: 0.95rem;
+    color: {PALETTE["muted"]};
+    font-size: 0.74rem;
+    line-height: 1.6;
+}}
+
+.sidebar-footer span {{
+    color: {PALETTE["green"]};
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}}
+
+.sidebar-footer strong {{
+    color: {PALETTE["text"]};
+    font-size: 0.88rem;
 }}
 </style>
 """

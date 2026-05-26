@@ -64,6 +64,16 @@ with st.sidebar:
     st.caption("Python · DuckDB · dbt-style SQL · Streamlit · quality checks")
     st.markdown("## Production Mirror")
     st.caption("Kafka/Spark · Snowflake · dbt · AWS · governed AI over metric marts")
+    st.markdown(
+        """
+<div class="sidebar-footer">
+  <span>Built by</span><br>
+  <strong>Ravi Rajpurohit</strong><br>
+  Data Engineering · Analytics Engineering · Governed AI
+</div>
+""",
+        unsafe_allow_html=True,
+    )
 
 filtered_days = filtered_member_days(member_days, selected_cohort, selected_gender, selected_plan)
 filtered_life = filtered_lifecycle(lifecycle, selected_cohort, selected_gender, selected_plan)
@@ -141,24 +151,47 @@ with tab_growth:
         )
         st.altair_chart(style_chart(chart, height=310), use_container_width=True)
 
-    st.markdown("## Subscription Continuity by Plan and Gender")
     continuity = filtered_life.groupby(["plan_type", "gender"], as_index=False).apply(
         lambda d: pd.Series({"subscription_continuity_pct": lifecycle_summary(d)["subscription_continuity_pct"], "members": d["total_members"].sum()})
     )
     continuity["plan"] = continuity["plan_type"].map(option_label)
     continuity["gender_label"] = continuity["gender"].map(option_label)
-    heatmap = alt.Chart(continuity).mark_rect(cornerRadius=3).encode(
-        x=alt.X("plan:N", title="Plan", axis=alt.Axis(labelAngle=-35)),
-        y=alt.Y("gender_label:N", title="Gender"),
-        color=alt.Color("subscription_continuity_pct:Q", title="Continuity 30D (%)", scale=alt.Scale(range=[PALETTE["red"], PALETTE["yellow"], PALETTE["green"]])),
-        tooltip=[
-            alt.Tooltip("plan:N", title="Plan"),
-            alt.Tooltip("gender_label:N", title="Gender"),
-            alt.Tooltip("subscription_continuity_pct:Q", title="Subscription Continuity 30D", format=".1f"),
-            alt.Tooltip("members:Q", title="Members", format=","),
-        ],
+    continuity_best = continuity.sort_values("subscription_continuity_pct", ascending=False).iloc[0]
+    continuity_watch = continuity.sort_values("subscription_continuity_pct", ascending=True).iloc[0]
+    continuity_spread = continuity_best["subscription_continuity_pct"] - continuity_watch["subscription_continuity_pct"]
+    continuity_insight = (
+        f"{continuity_best['plan']} / {continuity_best['gender_label']} is the strongest visible segment at "
+        f"{continuity_best['subscription_continuity_pct']:.1f}% subscription continuity over the last 30 days. "
+        f"The widest segment spread is {continuity_spread:.1f} percentage points versus "
+        f"{continuity_watch['plan']} / {continuity_watch['gender_label']}, which gives lifecycle and product teams "
+        "a practical place to inspect onboarding, renewal, and engagement differences."
     )
-    st.altair_chart(style_chart(heatmap, height=260), use_container_width=True)
+    continuity_left, continuity_right = st.columns([1.2, 0.8])
+    with continuity_left:
+        st.markdown("## Subscription Continuity by Plan and Gender")
+        heatmap = alt.Chart(continuity).mark_rect(cornerRadius=3).encode(
+            x=alt.X("plan:N", title="Plan", axis=alt.Axis(labelAngle=-35)),
+            y=alt.Y("gender_label:N", title="Gender"),
+            color=alt.Color("subscription_continuity_pct:Q", title="Continuity 30D (%)", scale=alt.Scale(range=[PALETTE["red"], PALETTE["yellow"], PALETTE["green"]])),
+            tooltip=[
+                alt.Tooltip("plan:N", title="Plan"),
+                alt.Tooltip("gender_label:N", title="Gender"),
+                alt.Tooltip("subscription_continuity_pct:Q", title="Subscription Continuity 30D", format=".1f"),
+                alt.Tooltip("members:Q", title="Members", format=","),
+            ],
+        )
+        st.altair_chart(style_chart(heatmap, height=275), use_container_width=True)
+    with continuity_right:
+        st.markdown(
+            f"""
+<div class="panel">
+  <div class="panel-title">Governed AI Insight</div>
+  <div class="insight-copy">{continuity_insight}</div>
+  <div class="caption-mono">Derived from lifecycle aggregates and current filters.</div>
+</div>
+""",
+            unsafe_allow_html=True,
+        )
 
 with tab_signals:
     recovery_delta = latest["avg_recovery"] - previous["avg_recovery"]
@@ -269,37 +302,35 @@ with tab_experiment:
     st.altair_chart(style_chart(trend, height=340), use_container_width=True)
     st.caption("Baseline Algorithm is the existing scoring logic. Release Candidate is the algorithm update being validated against outcome and guardrail metrics.")
 
-    left, right = st.columns([1, 1])
-    with left:
-        st.markdown("## Variant Summary")
-        variant_summary = (
-            experiment_daily.groupby(["experiment_variant", "algorithm_version"], as_index=False)
-            .agg(
-                active_members=("active_members", "max"),
-                avg_recovery=("avg_recovery", "mean"),
-                avg_sleep_hours=("avg_sleep_hours", "mean"),
-                avg_app_minutes=("avg_app_minutes", "mean"),
-                low_recovery_pct=("low_recovery_pct", "mean"),
-            )
-            .round(2)
+    st.markdown("## Variant Summary")
+    variant_summary = (
+        experiment_daily.groupby(["experiment_variant", "algorithm_version"], as_index=False)
+        .agg(
+            active_members=("active_members", "max"),
+            avg_recovery=("avg_recovery", "mean"),
+            avg_sleep_hours=("avg_sleep_hours", "mean"),
+            avg_app_minutes=("avg_app_minutes", "mean"),
+            low_recovery_pct=("low_recovery_pct", "mean"),
         )
-        variant_summary["algorithm_group"] = variant_summary["experiment_variant"].map(experiment_variant_label)
-        variant_summary = variant_summary[
-            ["algorithm_group", "algorithm_version", "active_members", "avg_recovery", "avg_sleep_hours", "avg_app_minutes", "low_recovery_pct"]
-        ]
-        variant_summary = variant_summary.rename(columns={column: metric_label(column) for column in variant_summary.columns})
-        st.dataframe(variant_summary, use_container_width=True, hide_index=True)
-    with right:
-        st.markdown(
-            f"""
+        .round(2)
+    )
+    variant_summary["algorithm_group"] = variant_summary["experiment_variant"].map(experiment_variant_label)
+    variant_summary = variant_summary[
+        ["algorithm_group", "algorithm_version", "active_members", "avg_recovery", "avg_sleep_hours", "avg_app_minutes", "low_recovery_pct"]
+    ]
+    variant_summary = variant_summary.rename(columns={column: metric_label(column) for column in variant_summary.columns})
+    st.dataframe(variant_summary, use_container_width=True, hide_index=True)
+
+    st.markdown(
+        f"""
 <div class="panel">
   <div class="panel-title">Experiment Readout</div>
   <div class="insight-copy">{experiment_answer('summary', experiment_summary)}</div>
   <div class="caption-mono">Baseline = recovery_v1 · Release Candidate = recovery_v2 · Guardrail = low-recovery rate.</div>
 </div>
 """,
-            unsafe_allow_html=True,
-        )
+        unsafe_allow_html=True,
+    )
 
 with tab_health:
     health_cards = [

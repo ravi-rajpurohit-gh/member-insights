@@ -59,6 +59,8 @@ timeline
 | Build a governed assistant router | Gives users natural-language answers without hosted API limits, local model setup, or hallucinated metrics. | It is deterministic and tool-routed rather than a fully generative assistant. |
 | Add experimentation analytics | Shows how member insights can support algorithm-release validation, guardrails, and product analytics. | Statistical inference is intentionally lightweight in the current version. |
 | Treat platform health as a first-class tab | Shows that metric trust depends on pipeline freshness, quality gates, and model inventory. | Uses local audit tables instead of external observability systems. |
+| Keep creator attribution in the sidebar | Makes ownership visible without making the analytics surface feel like a portfolio banner. | Attribution is quieter than a main-page footer. |
+| Move readouts below wide tables | Preserves table readability for comparison workflows while keeping narrative interpretation nearby. | The user scrolls slightly more in exchange for fewer hidden columns. |
 
 ## Architecture
 
@@ -125,4 +127,3 @@ The project now operates as a compact member-insights platform with:
 - governed metric definitions,
 - natural-language analytics with traceable tool routing,
 - and maintainable code organization across `app.py`, `src/data.py`, `src/metrics.py`, and `src/ui.py`.
-

@@ -50,6 +50,8 @@ The experiment mart models a recovery-algorithm release as a baseline/release-ca
 
 The Streamlit app uses a neutral health-and-performance analytics visual language: dark surface, score rings, recovery/sleep/strain prominence, and green/yellow/red status semantics.
 
+The latest UI pass keeps attribution in the sidebar, gives governed insight/readout panels a consistent highlighted title treatment, and pairs dense visuals with a short business interpretation where it improves comprehension. Wide analytical tables stay full-width, while narrative readouts sit below them to avoid hiding columns.
+
 ### App Organization
 
 The app currently uses one Streamlit page with six tabs. That is intentional for the product experience: users can understand the full data product in one surface without navigating across pages. The tabs map to natural stakeholder workflows: growth, performance, experimentation, platform health, metric governance, and natural-language analysis.
