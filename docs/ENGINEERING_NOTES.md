@@ -42,6 +42,8 @@ The assistant is function-backed rather than free-form. It answers common stakeh
 
 The assistant now behaves as a governed visual analyst: the same routed answer can attach a contextual chart for growth, retention, subscription continuity, performance signals, experimentation, or platform health. This keeps the product experience close to modern AI analytics tools while preserving deterministic execution, explainable tool selection, and no dependency on paid API quotas.
 
+The conversation UI uses native Streamlit bordered containers instead of custom chat-bubble HTML. User prompts are separated from analyst responses, assistant charts and trace metadata stay inside the response block, and prompt suggestions are hidden after the first turn. This keeps the assistant readable and reliable across local and hosted Streamlit environments.
+
 LangChain is intentionally not included yet. The current assistant needs a small, inspectable tool boundary rather than a full orchestration framework. If the assistant grows to multiple retrieval sources, memory, evaluation traces, or provider routing, LangChain or LangGraph would become more useful.
 
 ### Experimentation & Algorithm Releases
@@ -86,5 +88,17 @@ A multi-page Streamlit structure would make sense if this becomes a larger portf
 - Run app: `streamlit run app.py`
 - Confirm the dashboard tabs render: Growth & Retention, Performance Signals, Experimentation, Data Platform Health, Metric Dictionary, Insights Assistant
 - Confirm Insights Assistant answers from current modeled metrics
-- Confirm assistant trace shows selected tool, estimated tokens, rows considered, latency, and zero API cost
+- Confirm Insights Assistant can return a contextual chart for growth, retention, subscription continuity, performance, experimentation, and platform-health routes
+- Confirm assistant trace shows selected tool, estimated tokens, rows considered, latency, API calls, and zero API cost
 - Confirm all quality checks pass before sharing or deploying
+
+## Checkpoint Record
+
+2026-05-25 checkpoint:
+
+- Functional checkpoint commit: `bbfa256 Refine assistant conversation UI`.
+- Python compile check passed with `PYTHONPYCACHEPREFIX=/private/tmp`.
+- Quality checks passed with `python tests/run_quality_checks.py`.
+- Browser smoke test confirmed the assistant renders a user prompt, analyst response, contextual chart, and analysis trace.
+- Documentation updated in README, changelog, project tracker, engineering notes, and case study.
+- Current recommendation: hold app structure stable and focus on walkthrough practice unless a bug or high-value polish item appears.

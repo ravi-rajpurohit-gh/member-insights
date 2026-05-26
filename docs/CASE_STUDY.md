@@ -30,8 +30,11 @@ timeline
                : Added Experimentation for algorithm-release baseline vs release-candidate analysis
                : Reworked assistant into a governed function router with no hosted API dependency
                : Added analysis trace with selected tool, estimated tokens, rows considered, latency, and zero API cost
+               : Added governed visual responses for natural-language questions
+               : Refined assistant conversation UI into bordered production-style message blocks
                : Polished chart labels, KPI language, tooltips, and table headers
                : Refactored app helpers into src/data.py, src/metrics.py, and src/ui.py
+               : Captured checkpoint documentation across README, changelog, engineering notes, case study, and project tracker
 ```
 
 ## Delivery Phases
@@ -45,6 +48,7 @@ timeline
 | Product Analytics | Added member growth, retention, subscription continuity, acquisition, performance, and experimentation analytics. | Growth & Retention, Performance Signals, and Experimentation tabs. |
 | Governed AI Workflow | Built natural-language Q&A over governed analytical functions with trace metadata and zero external API cost. | Insights Assistant tab and `src/metrics.py`. |
 | UX Polish | Cleaned chart labels, tooltips, KPI wording, axis readability, card layout, and visual hierarchy. | Streamlit UI, `src/ui.py`, changelog. |
+| Checkpoint Documentation | Recorded current state, decisions, lifecycle, validation, and production evolution for portfolio reuse. | README, changelog, `docs/PROJECT_TRACKER.md`, `docs/ENGINEERING_NOTES.md`, and this case study. |
 | Code Organization | Refactored shared logic into data, metrics, and UI modules while keeping the app as a single clear product surface. | `app.py`, `src/data.py`, `src/metrics.py`, `src/ui.py`. |
 
 ## Decision Log
@@ -58,6 +62,8 @@ timeline
 | Use generated privacy-safe data | Preserves realistic analytical shape without using private company, product, or member data. | Metrics are representative rather than sourced from a real production system. |
 | Build a governed assistant router | Gives users natural-language answers without hosted API limits, local model setup, or hallucinated metrics. | It is deterministic and tool-routed rather than a fully generative assistant. |
 | Add visual responses to the assistant | Makes natural-language analytics feel more complete: the analyst can answer with text, charts, and trace metadata. | Visual generation is tied to approved analytical routes instead of arbitrary chart requests. |
+| Use native bordered message blocks for assistant UI | Keeps the chat surface clean and reliable across Streamlit themes and hosted deployments. | Less custom visual flair, but a more stable production feel. |
+| Hide assistant suggestions after a thread starts | Keeps the active conversation focused and prevents prompt buttons from crowding the analysis. | Users clear the thread to see suggestions again. |
 | Add experimentation analytics | Shows how member insights can support algorithm-release validation, guardrails, and product analytics. | Statistical inference is intentionally lightweight in the current version. |
 | Treat platform health as a first-class tab | Shows that metric trust depends on pipeline freshness, quality gates, and model inventory. | Uses local audit tables instead of external observability systems. |
 | Keep creator attribution in the sidebar | Makes ownership visible without making the analytics surface feel like a portfolio banner. | Attribution is quieter than a main-page footer. |
@@ -128,3 +134,14 @@ The project now operates as a compact member-insights platform with:
 - governed metric definitions,
 - natural-language analytics with traceable tool routing and governed visual responses,
 - and maintainable code organization across `app.py`, `src/data.py`, `src/metrics.py`, and `src/ui.py`.
+
+## Checkpoint
+
+As of 2026-05-25, the project is in a stable checkpoint state:
+
+- application behavior verified with browser smoke testing,
+- Python compile check passed,
+- all quality checks passing,
+- documentation updated across project tracker, case study, engineering notes, README, and changelog,
+- functional app checkpoint captured at commit `bbfa256`,
+- remaining work is optional polish rather than core functionality.

@@ -153,6 +153,17 @@ The project includes checks for:
 - experiment summary population,
 - and model inventory population.
 
+## Project Checkpoint
+
+As of 2026-05-25, the project is in a stable checkpoint state:
+
+- the six-tab Streamlit application is implemented and browser-verified,
+- generated data and DuckDB models are in place,
+- 13 quality checks are passing,
+- the governed visual assistant answers natural-language questions with precise text, contextual charts, and trace metadata,
+- README, changelog, project tracker, engineering notes, and case study documentation are aligned,
+- functional checkpoint commit: `bbfa256 Refine assistant conversation UI`.
+
 ## 90-Second Walkthrough
 
 1. "I built this as a small version of a member-insights platform: raw wearable and app events becoming reliable product analytics."
