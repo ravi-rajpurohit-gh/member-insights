@@ -9,7 +9,7 @@ from .ui import metric_label, option_label
 
 
 def explain_metric(selected_cohort: str, latest: pd.Series, previous: pd.Series) -> str:
-    """Create a deterministic stand-in for a governed AI insight."""
+    """Create a governed insight summary from aggregate movement."""
     recovery_delta = latest["avg_recovery"] - previous["avg_recovery"]
     sleep_delta = latest["avg_sleep_hours"] - previous["avg_sleep_hours"]
     strain_delta = latest["avg_strain"] - previous["avg_strain"]

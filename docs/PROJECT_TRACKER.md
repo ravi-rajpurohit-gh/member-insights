@@ -1,6 +1,6 @@
 # Member Insights Lakehouse Project Tracker
 
-Last updated: 2026-05-25
+Last updated: 2026-05-27
 
 ## Goal
 
@@ -24,7 +24,7 @@ Build a compact, production-minded member analytics platform that demonstrates e
 - GitHub repository pushed at `https://github.com/ravi-rajpurohit-gh/member-insights`.
 - Insights Assistant now uses governed analytical routing with text responses, contextual charts, and trace metadata.
 - Assistant UI uses bordered conversation blocks and hides prompt suggestions once a thread starts.
-- Functional checkpoint commit: `bbfa256 Refine assistant conversation UI`.
+- Public checkpoint: application, documentation, repository hygiene, and GitHub state are aligned.
 - Checkpoint status: app is stable, documented, tested, pushed, and ready for walkthrough practice.
 
 ## Key Decisions
@@ -59,7 +59,7 @@ Build a compact, production-minded member analytics platform that demonstrates e
 | 2026-05-24 | Created Member Insights Lakehouse project with generated privacy-safe data, SQL models, quality checks, Streamlit app, and README walkthrough. |
 | 2026-05-24 | Verified generated warehouse: 160 members, 36,589 events, 7,200 member-days, and 100% quality pass rate. |
 | 2026-05-24 | Verified app in browser at `http://localhost:8501`. |
-| 2026-05-25 | Rewrote README around project vision, target users, production mapping, and production-grade proof-of-concept positioning. |
+| 2026-05-25 | Rewrote README around project vision, target users, production mapping, and production-minded implementation positioning. |
 | 2026-05-25 | Redesigned Streamlit UI with a neutral dark performance dashboard, cohort filter sidebar, status pill, score-ring metric cards, governed AI panel, and production-style platform health view. |
 | 2026-05-25 | Decided to keep public repository/project naming neutral as `member-insights` and avoid company-specific branding in public-facing files. |
 | 2026-05-25 | Added code documentation, engineering notes, changelog, and README links in preparation for moving the project to active development and publishing to GitHub. |
@@ -73,7 +73,7 @@ Build a compact, production-minded member analytics platform that demonstrates e
 | 2026-05-25 | Removed decorative `+0.0` deltas from KPI cards without meaningful comparison periods. |
 | 2026-05-25 | Verified syntax, quality checks, and browser smoke test after assistant and visualization polish. |
 | 2026-05-25 | Refactored `app.py` from 1,147 lines to a focused single-page Streamlit flow backed by `src/data.py`, `src/metrics.py`, and `src/ui.py`. |
-| 2026-05-25 | Removed stale assistant helpers and duplicate CSS while preserving the one-page tabbed demo experience. |
+| 2026-05-25 | Removed stale assistant helpers and duplicate CSS while preserving the one-page tabbed product experience. |
 | 2026-05-25 | Added portfolio case study documentation with lifecycle timeline, delivery phases, decision log, architecture, validation strategy, production evolution, and final state. |
 | 2026-05-25 | Added governed visual analyst behavior: assistant answers can include contextual charts while preserving deterministic tool routing and zero external API dependency. |
 | 2026-05-25 | Reworked assistant conversation UI into reliable bordered message blocks, removed `YOU`/`MI` custom badges, and hid prompt suggestions after the conversation starts. |

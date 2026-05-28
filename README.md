@@ -25,7 +25,7 @@ This application is built for the kinds of teams that need to make member behavi
 - **Data engineering teams** building reliable ELT pipelines, metric marts, and platform observability.
 - **Analytics and product teams** measuring recovery, sleep, strain, engagement, cohort behavior, and experimentation outcomes.
 - **Data science and ML partners** who need clean, documented, ML-ready member-day features.
-- **Engineering managers and technical leads** evaluating whether a data platform can scale from prototype to production.
+- **Engineering managers and technical leads** evaluating whether a data platform can scale from local implementation to production.
 
 ## What It Shows
 
@@ -119,6 +119,7 @@ member-insights/
     ui.py                 # Shared CSS, labels, cards, and chart styling
   sql/01_build_models.sql
   tests/run_quality_checks.py
+  .streamlit/config.toml # Streamlit dark theme configuration
   .github/workflows/keep-alive.yml
   data/
 ```
@@ -155,14 +156,14 @@ The project includes checks for:
 
 ## Project Checkpoint
 
-As of 2026-05-25, the project is in a stable checkpoint state:
+As of 2026-05-27, the project is in a stable public checkpoint state:
 
 - the six-tab Streamlit application is implemented and browser-verified,
 - generated data and DuckDB models are in place,
 - 13 quality checks are passing,
 - the governed visual assistant answers natural-language questions with precise text, contextual charts, and trace metadata,
 - README, changelog, project tracker, engineering notes, and case study documentation are aligned,
-- functional checkpoint commit: `bbfa256 Refine assistant conversation UI`.
+- current public checkpoint: application, documentation, and repository hygiene are aligned.
 
 ## 90-Second Walkthrough
 

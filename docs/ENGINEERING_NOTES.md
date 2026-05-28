@@ -1,6 +1,6 @@
 # Engineering Notes
 
-Last updated: 2026-05-25
+Last updated: 2026-05-27
 
 ## Purpose
 
@@ -70,7 +70,7 @@ A multi-page Streamlit structure would make sense if this becomes a larger portf
 
 ## Production Mapping
 
-| Local Demo | Production Equivalent |
+| Local Implementation | Production Equivalent |
 | --- | --- |
 | CSV event generation | Kafka/Kinesis event ingestion |
 | DuckDB | Snowflake analytical warehouse |
@@ -96,7 +96,7 @@ A multi-page Streamlit structure would make sense if this becomes a larger portf
 
 2026-05-25 checkpoint:
 
-- Functional checkpoint commit: `bbfa256 Refine assistant conversation UI`.
+- Public checkpoint: application, documentation, repository hygiene, and GitHub state are aligned.
 - Python compile check passed with `PYTHONPYCACHEPREFIX=/private/tmp`.
 - Quality checks passed with `python tests/run_quality_checks.py`.
 - Browser smoke test confirmed the assistant renders a user prompt, analyst response, contextual chart, and analysis trace.

@@ -1,11 +1,18 @@
 # Changelog
 
+## 2026-05-27
+
+- Audited public-facing documentation for neutral product framing and removed stale demo, prototype, and checkpoint-commit wording.
+- Updated repository hygiene so Streamlit theme configuration can be tracked while secrets, local environments, logs, and DuckDB sidecars stay ignored.
+- Added the Streamlit theme file to the documented project structure.
+- Refined code comments and test package wording to describe the app as a product-style application.
+
 ## 2026-05-25
 
 - Recorded stable project checkpoint across README, project tracker, engineering notes, and case study documentation.
 - Reworked the assistant conversation UI into reliable bordered message blocks and hid prompt suggestions after a conversation starts.
 - Upgraded the Insights Assistant into a governed visual analyst that can return text plus contextual charts.
-- Replaced default Streamlit chat avatars with branded analyst/user message cards.
+- Replaced default Streamlit chat avatars with project-styled analyst and user message cards.
 - Expanded assistant trace metadata with API call count and zero-cost display while preserving estimated token, row, and latency details.
 - Enlarged the product identity label in the app header for stronger first-glance recognition.
 - Added a governed insight panel beside subscription continuity so the heatmap has a clear business interpretation.

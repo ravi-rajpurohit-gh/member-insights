@@ -137,11 +137,11 @@ The project now operates as a compact member-insights platform with:
 
 ## Checkpoint
 
-As of 2026-05-25, the project is in a stable checkpoint state:
+As of 2026-05-27, the project is in a stable public checkpoint state:
 
 - application behavior verified with browser smoke testing,
 - Python compile check passed,
 - all quality checks passing,
 - documentation updated across project tracker, case study, engineering notes, README, and changelog,
-- functional app checkpoint captured at commit `bbfa256`,
+- public checkpoint documentation aligned across the repository,
 - remaining work is optional polish rather than core functionality.

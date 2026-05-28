@@ -1,5 +1,21 @@
 .DS_Store
 __pycache__/
 *.pyc
-.streamlit/
+.streamlit/*
+!.streamlit/
 !.streamlit/config.toml
+
+# Local environments
+.venv/
+venv/
+env/
+
+# Logs and local runtime state
+logs/
+*.log
+*.duckdb.wal
+*.duckdb.tmp
+
+# OS/editor noise
+.idea/
+.vscode/
