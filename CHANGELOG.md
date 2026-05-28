@@ -2,7 +2,9 @@
 
 ## 2026-05-27
 
-- Audited public-facing documentation for neutral product framing and removed stale demo, prototype, and checkpoint-commit wording.
+- Refined the README architecture diagram into a clearer product-to-platform view across event sources, modeled tables, app workflows, and production direction.
+- Rebuilt the case study into a portfolio-ready narrative covering product problem, target users, product surface, architecture, data model, governed AI strategy, validation, production evolution, and walkthrough path.
+- Audited public-facing documentation for neutral product framing and removed stale wording tied to earlier development checkpoints.
 - Updated repository hygiene so Streamlit theme configuration can be tracked while secrets, local environments, logs, and DuckDB sidecars stay ignored.
 - Added the Streamlit theme file to the documented project structure.
 - Refined code comments and test package wording to describe the app as a product-style application.

@@ -1,147 +1,226 @@
 # Member Insights Lakehouse Case Study
 
-## Overview
+## Executive Summary
 
-Member Insights Lakehouse is a production-minded analytics application for transforming wearable, app, lifecycle, and experimentation events into trusted member insights. It combines data modeling, data quality, observability, metric governance, experimentation analytics, and a governed natural-language assistant in one self-contained analytical product.
+Member Insights Lakehouse is a production-minded analytics application for transforming wearable, app, lifecycle, and experimentation events into trusted member insights. It is built around the kind of data product a member-based health, fitness, or performance company would need internally: reliable event modeling, cohort analytics, experiment readouts, platform-health visibility, governed metric definitions, and natural-language analysis over trusted tables.
 
-The application is designed around a realistic internal data platform pattern: raw event streams land as immutable facts, warehouse models turn them into reliable analytical tables, quality gates protect downstream use, and business-facing users consume metrics through dashboards, dictionaries, and governed AI-assisted workflows.
+The application is intentionally compact, but the architecture mirrors a larger production system. Raw event streams are modeled into member-day facts, lifecycle marts, cohort aggregates, experiment summaries, quality gates, and metric dictionaries. The product surface then gives analytics, product, engineering, and data science teams a shared place to inspect growth, retention, recovery, sleep, strain, engagement, release outcomes, and data reliability.
 
-## Product Goals
+## Product Problem
 
-- Turn high-volume event data into reliable member-day, cohort, lifecycle, and experiment marts.
-- Make member growth, retention, subscription continuity, recovery, sleep, strain, engagement, and algorithm-release outcomes easy to inspect.
-- Treat pipeline health, freshness, quality checks, and model inventory as part of the data product experience.
-- Provide natural-language access to trusted metrics without allowing unrestricted SQL generation or ungrounded answers.
-- Keep the system compact enough to run locally while preserving production migration paths to Kafka/Kinesis, Spark, Snowflake, dbt, AWS, and observability tooling.
+High-volume member products create a constant stream of behavioral and physiological signals. Those signals are valuable only when teams can trust the definitions, table grain, freshness, and quality controls behind the metrics.
 
-## Lifecycle Timeline
+The core product problem is not simply "show a dashboard." It is:
 
-```mermaid
-timeline
-    title Member Insights Lakehouse Development Lifecycle
-    2026-05-24 : Defined product vision and scope
-               : Generated privacy-safe member, wearable, app, and lifecycle data
-               : Built DuckDB warehouse and dbt-style SQL model layer
-               : Added quality checks for event IDs, metric bounds, freshness, and table grain
-               : Built first Streamlit analytics surface
-    2026-05-25 : Reframed README around vision, audience, production mapping, and product value
-               : Redesigned UI into a production-style internal analytics command center
-               : Added Growth & Retention, richer Platform Health, and Metric Dictionary workflows
-               : Added Experimentation for algorithm-release baseline vs release-candidate analysis
-               : Reworked assistant into a governed function router with no hosted API dependency
-               : Added analysis trace with selected tool, estimated tokens, rows considered, latency, and zero API cost
-               : Added governed visual responses for natural-language questions
-               : Refined assistant conversation UI into bordered production-style message blocks
-               : Polished chart labels, KPI language, tooltips, and table headers
-               : Refactored app helpers into src/data.py, src/metrics.py, and src/ui.py
-               : Captured checkpoint documentation across README, changelog, engineering notes, case study, and project tracker
-```
+- turn event-heavy member data into stable analytical tables,
+- make growth, retention, performance, and experimentation metrics easy to inspect,
+- expose data reliability alongside business metrics,
+- give stakeholders natural-language access without allowing ungoverned SQL or invented answers,
+- and preserve a clear migration path from local implementation to production-grade infrastructure.
 
-## Delivery Phases
+## Target Users
 
-| Phase | Outcome | Evidence |
-| --- | --- | --- |
-| Product Framing | Defined the platform vision, users, workflows, and production mapping. | README vision, audience, architecture, and walkthrough sections. |
-| Data Generation | Created privacy-safe member, wearable, app, lifecycle, and experiment datasets. | `generate_synthetic_data.py`, `data/`, and DuckDB warehouse artifact. |
-| Data Modeling | Built staging, dimension, fact, aggregate, audit, model inventory, experiment, and metric dictionary tables. | `sql/01_build_models.sql`. |
-| Quality & Observability | Added quality checks and platform health metrics for freshness, row counts, model inventory, and check pass rate. | `tests/run_quality_checks.py`, `pipeline_run_log`, `model_inventory`, Data Platform Health tab. |
-| Product Analytics | Added member growth, retention, subscription continuity, acquisition, performance, and experimentation analytics. | Growth & Retention, Performance Signals, and Experimentation tabs. |
-| Governed AI Workflow | Built natural-language Q&A over governed analytical functions with trace metadata and zero external API cost. | Insights Assistant tab and `src/metrics.py`. |
-| UX Polish | Cleaned chart labels, tooltips, KPI wording, axis readability, card layout, and visual hierarchy. | Streamlit UI, `src/ui.py`, changelog. |
-| Checkpoint Documentation | Recorded current state, decisions, lifecycle, validation, and production evolution for portfolio reuse. | README, changelog, `docs/PROJECT_TRACKER.md`, `docs/ENGINEERING_NOTES.md`, and this case study. |
-| Code Organization | Refactored shared logic into data, metrics, and UI modules while keeping the app as a single clear product surface. | `app.py`, `src/data.py`, `src/metrics.py`, `src/ui.py`. |
+| User | What They Need |
+| --- | --- |
+| Product and analytics teams | Growth, retention, subscription continuity, cohort movement, release impact, and metric explanations. |
+| Data engineering teams | Clear table grains, reliable transformations, quality gates, model inventory, freshness, and observability. |
+| Data science and ML partners | Member-day features and documented analytical tables that can support modeling and experimentation. |
+| Engineering leaders | Evidence that the data product can scale from a compact implementation to governed production workflows. |
 
-## Decision Log
+## Product Surface
 
-| Decision | Rationale | Tradeoff |
-| --- | --- | --- |
-| Keep one Streamlit page with tabs | The product is easier to scan as one internal analytics surface. Shared filters, status, and context remain visible across workflows. | A larger long-lived app may eventually benefit from separate pages. |
-| Extract helpers into `src/` modules | Keeps `app.py` readable while preserving a simple one-page user experience. | Adds a small amount of project structure. |
-| Use DuckDB locally | Enables fast local iteration and reproducible analytics without external infrastructure. | Production deployment would move the same model pattern to Snowflake or another warehouse. |
-| Use dbt-style SQL models | Makes table grain, transformation logic, and warehouse migration paths easy to discuss and inspect. | Does not include a full dbt project scaffold yet. |
-| Use generated privacy-safe data | Preserves realistic analytical shape without using private company, product, or member data. | Metrics are representative rather than sourced from a real production system. |
-| Build a governed assistant router | Gives users natural-language answers without hosted API limits, local model setup, or hallucinated metrics. | It is deterministic and tool-routed rather than a fully generative assistant. |
-| Add visual responses to the assistant | Makes natural-language analytics feel more complete: the analyst can answer with text, charts, and trace metadata. | Visual generation is tied to approved analytical routes instead of arbitrary chart requests. |
-| Use native bordered message blocks for assistant UI | Keeps the chat surface clean and reliable across Streamlit themes and hosted deployments. | Less custom visual flair, but a more stable production feel. |
-| Hide assistant suggestions after a thread starts | Keeps the active conversation focused and prevents prompt buttons from crowding the analysis. | Users clear the thread to see suggestions again. |
-| Add experimentation analytics | Shows how member insights can support algorithm-release validation, guardrails, and product analytics. | Statistical inference is intentionally lightweight in the current version. |
-| Treat platform health as a first-class tab | Shows that metric trust depends on pipeline freshness, quality gates, and model inventory. | Uses local audit tables instead of external observability systems. |
-| Keep creator attribution in the sidebar | Makes ownership visible without making the analytics surface feel like a portfolio banner. | Attribution is quieter than a main-page footer. |
-| Move readouts below wide tables | Preserves table readability for comparison workflows while keeping narrative interpretation nearby. | The user scrolls slightly more in exchange for fewer hidden columns. |
+The application is organized as one Streamlit product surface with six focused workflows:
+
+| View | Purpose |
+| --- | --- |
+| Growth & Retention | Tracks new members, active members, 30-day retention, subscription continuity, acquisition channels, and plan/gender/cohort segmentation. |
+| Performance Signals | Shows recovery, sleep, strain, engagement, and low-recovery risk trends from member-day facts. |
+| Experimentation | Compares baseline and release-candidate algorithm groups with outcome and guardrail metrics. |
+| Data Platform Health | Surfaces pipeline status, freshness, raw event volume, quality pass rate, model inventory, and modeled table counts. |
+| Metric Dictionary | Documents governed definitions and source logic for metrics used across the app. |
+| Insights Assistant | Routes natural-language questions to governed analytical functions and returns precise text, contextual charts, and trace metadata. |
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    A["Generated member profiles"] --> B["dim_members"]
-    C["Generated wearable and app events"] --> D["stg_member_events"]
-    E["Generated experiment assignments"] --> F["dim_experiment_assignments"]
+    subgraph Sources["Privacy-Safe Event Sources"]
+        A["Wearable telemetry<br/>heart rate, sleep, strain, recovery"]
+        B["App engagement<br/>sessions, workouts, check-ins"]
+        C["Member lifecycle<br/>plan, cohort, goal, status"]
+        D["Algorithm release assignments<br/>baseline vs release candidate"]
+    end
 
-    B --> G["fct_member_day"]
+    subgraph Modeling["Analytical Modeling"]
+        E["stg_member_events<br/>immutable event grain"]
+        F["dim_members<br/>member profile grain"]
+        G["dim_experiment_assignments<br/>member-release grain"]
+        H["fct_member_day<br/>member-day grain"]
+        I["agg_cohort_daily<br/>cohort-day grain"]
+        J["agg_member_lifecycle<br/>segment grain"]
+        K["agg_experiment_summary<br/>release summary grain"]
+    end
+
+    subgraph Governance["Trust and Governance"]
+        L["quality checks<br/>bounds, nulls, grain, freshness"]
+        M["metric_dictionary<br/>definitions and source logic"]
+        N["model_inventory<br/>tables, grains, row counts"]
+        O["pipeline_run_log<br/>freshness and run telemetry"]
+    end
+
+    subgraph Experience["User Experience"]
+        P["Growth & Retention"]
+        Q["Performance Signals"]
+        R["Experimentation"]
+        S["Data Platform Health"]
+        T["Metric Dictionary"]
+        U["Insights Assistant<br/>governed visual analyst"]
+    end
+
+    A --> E
+    B --> E
+    C --> F
     D --> G
-    F --> G
-
-    G --> H["agg_cohort_daily"]
-    B --> I["agg_member_lifecycle"]
-    G --> J["agg_experiment_daily"]
-    J --> K["agg_experiment_summary"]
-
-    H --> L["Performance Signals"]
-    I --> M["Growth & Retention"]
-    K --> N["Experimentation"]
-    O["pipeline_run_log + model_inventory + quality checks"] --> P["Data Platform Health"]
-    Q["metric_dictionary"] --> R["Metric Dictionary"]
-
-    H --> S["Governed Insights Assistant"]
-    I --> S
-    K --> S
-    P --> S
-    Q --> S
+    E --> H
+    F --> H
+    G --> H
+    H --> I
+    F --> J
+    H --> K
+    L --> S
+    N --> S
+    O --> S
+    M --> T
+    J --> P
+    I --> Q
+    K --> R
+    I --> U
+    J --> U
+    K --> U
+    M --> U
+    O --> U
 ```
+
+## Data Model
+
+| Layer | Table | Grain | Why It Exists |
+| --- | --- | --- | --- |
+| Staging | `stg_member_events` | One event per member event | Preserves immutable wearable and app-event history for downstream modeling. |
+| Dimension | `dim_members` | One row per member | Provides cohort, plan, goal, demographic, acquisition, and lifecycle attributes. |
+| Dimension | `dim_experiment_assignments` | One assignment per member | Supports baseline vs release-candidate analysis for algorithm updates. |
+| Fact | `fct_member_day` | One row per member per day | Creates ML-ready and dashboard-ready daily features from raw event signals. |
+| Aggregate | `agg_cohort_daily` | One row per cohort per day | Powers performance trends for recovery, sleep, strain, engagement, and risk. |
+| Aggregate | `agg_member_lifecycle` | One row per segment | Powers growth, retention, subscription continuity, and segmentation analysis. |
+| Aggregate | `agg_experiment_summary` | One row per experiment | Summarizes lift and guardrail movement for release validation. |
+| Governance | `metric_dictionary` | One row per metric | Keeps definitions and source logic explicit for dashboard and assistant use. |
+| Observability | `pipeline_run_log`, `model_inventory` | One row per run/table | Makes data freshness, table inventory, and row counts visible to users. |
+
+## Governed AI Strategy
+
+The Insights Assistant is designed as a governed visual analyst rather than a free-form LLM dependency. This was a deliberate product and engineering choice.
+
+The assistant:
+
+- accepts natural-language questions,
+- routes each question to a curated analytical function,
+- answers from modeled aggregate tables and metric definitions,
+- attaches charts when a visual answer is useful,
+- and displays trace metadata such as selected tool, estimated tokens, rows considered, latency, API calls, and API cost.
+
+This provides the user experience of natural-language analytics while avoiding the most common failure modes in analytical AI products: arbitrary SQL generation, hallucinated definitions, private data exposure, API quota failures, and untraceable answers.
+
+## Key Product Decisions
+
+| Decision | Rationale | Tradeoff |
+| --- | --- | --- |
+| Keep one Streamlit page with tabs | A product stakeholder can understand the full data product quickly without navigating through multiple pages. | A larger maintained product could later split into pages. |
+| Model member-day facts before aggregates | Member-day grain is the right bridge between raw wearable events, dashboards, experimentation, and ML features. | Requires more modeling discipline than charting directly from raw events. |
+| Add platform health as a first-class workflow | Metric trust depends on freshness, quality checks, and model inventory, not only business charts. | Uses local observability artifacts instead of full production orchestration metadata. |
+| Use baseline vs release-candidate language | This is more readable for product and engineering stakeholders than only control/treatment terminology. | Statistical inference is intentionally lightweight in the current version. |
+| Build a governed assistant router | Natural-language access works without API keys, local model setup, hosted API limits, or hallucinated SQL. | The assistant is constrained to approved analytical routes rather than unlimited free-form analysis. |
+| Show trace metadata | Makes AI-assisted analysis auditable and production-minded. | Token counts are estimated because the current assistant does not call a hosted model. |
 
 ## Validation Strategy
 
-- Event identity checks prevent duplicate raw events.
-- Null checks protect required member keys.
-- Accepted-value checks validate member status, gender, and experiment variants.
-- Bounds checks protect recovery and heart-rate ranges.
-- Grain checks ensure one row per member per day in the fact table.
-- Freshness checks verify that recent data is available.
-- Lifecycle rate checks ensure retention and continuity metrics stay within valid percentage ranges.
-- Experiment checks verify unique assignments and populated experiment summaries.
-- Model inventory checks confirm that modeled tables are visible to the platform-health layer.
+The project includes 13 quality checks covering:
+
+- duplicate event IDs,
+- required member identifiers,
+- recovery score bounds,
+- heart-rate bounds,
+- one-row-per-member-per-day fact grain,
+- recent data freshness,
+- accepted member status values,
+- accepted gender values,
+- lifecycle percentage bounds,
+- model inventory population,
+- unique experiment assignments,
+- accepted experiment variants,
+- and populated experiment summaries.
+
+Quality is intentionally visible in the product through the Data Platform Health workflow. That makes data reliability part of the user experience instead of a hidden engineering concern.
 
 ## Production Evolution
 
-| Local Implementation | Production Direction |
+| Current Implementation | Production Direction |
 | --- | --- |
-| CSV event generation | Kafka/Kinesis event ingestion with schema contracts |
-| DuckDB warehouse | Snowflake analytical warehouse |
-| SQL model file | dbt model DAG, docs, tests, exposures, and CI |
-| Python quality checks | dbt tests, Great Expectations, warehouse assertions, and alerting |
-| Streamlit application | Internal analytics application or BI serving layer |
-| Governed function router | Approved AI assistant with tool calling, retrieval, evaluation, and audit logs |
-| Local pipeline audit table | CloudWatch, Datadog, orchestration metadata, and metric SLAs |
+| Generated privacy-safe CSVs | Kafka/Kinesis event ingestion with schema contracts and event versioning. |
+| DuckDB analytical warehouse | Snowflake or a cloud warehouse serving governed marts. |
+| SQL model file | dbt model DAG with tests, docs, exposures, metric contracts, and CI. |
+| Python quality checks | dbt tests, Great Expectations, warehouse assertions, and alerting. |
+| Streamlit application | Internal analytics app, product analytics surface, or BI serving layer. |
+| Governed function router | Approved AI assistant with tool calling, retrieval, evaluation, access controls, and audit logs. |
+| Local pipeline audit table | Orchestration metadata, CloudWatch/Datadog telemetry, freshness SLAs, and incident alerts. |
+
+## Development Lifecycle
+
+```mermaid
+timeline
+    title Member Insights Lakehouse Development Lifecycle
+    2026-05-24 : Framed product vision and analytical questions
+               : Generated privacy-safe member, wearable, app, lifecycle, and experiment data
+               : Built DuckDB warehouse and SQL model layer
+               : Added quality checks for identity, bounds, freshness, and table grain
+               : Created first Streamlit analytics surface
+    2026-05-25 : Reframed documentation around audience, production mapping, and product value
+               : Redesigned UI into a production-style analytics command center
+               : Added Growth & Retention, Platform Health, Metric Dictionary, and Experimentation workflows
+               : Replaced hosted/local LLM dependency with a governed function router
+               : Added visual assistant responses and analysis trace metadata
+               : Polished chart labels, KPI wording, assistant layout, and table presentation
+               : Refactored reusable logic into data, metrics, and UI modules
+    2026-05-27 : Audited public-facing wording and repository hygiene
+               : Tracked Streamlit theme configuration and protected secrets/local runtime files
+               : Refined architecture and case-study documentation for portfolio reuse
+```
+
+## Portfolio Narrative
+
+This project demonstrates a practical data engineering and analytics engineering approach:
+
+- start from the business questions,
+- design the right table grains,
+- build metric marts that support both dashboards and AI workflows,
+- make reliability visible through platform health,
+- keep metric definitions governed,
+- and design natural-language analytics around trusted functions instead of unrestricted generation.
+
+The strongest walkthrough path is:
+
+1. Open with the problem: member products need trusted insights from high-volume event data.
+2. Show Growth & Retention to establish business value.
+3. Show Experimentation to demonstrate product analytics and release validation.
+4. Show Data Platform Health to prove that metric trust is treated as part of the product.
+5. Show Insights Assistant with chart and analysis trace to highlight governed AI over curated metrics.
+6. Close with the production evolution: Kafka/Kinesis, Spark, Snowflake, dbt, AWS observability, and approved AI tooling.
 
 ## Final State
 
-The project now operates as a compact member-insights platform with:
-
-- a clear business-facing analytics surface,
-- reliable table grains and modeled data products,
-- quality gates and platform-health visibility,
-- experimentation support for algorithm-release analysis,
-- governed metric definitions,
-- natural-language analytics with traceable tool routing and governed visual responses,
-- and maintainable code organization across `app.py`, `src/data.py`, `src/metrics.py`, and `src/ui.py`.
-
-## Checkpoint
-
 As of 2026-05-27, the project is in a stable public checkpoint state:
 
-- application behavior verified with browser smoke testing,
-- Python compile check passed,
-- all quality checks passing,
-- documentation updated across project tracker, case study, engineering notes, README, and changelog,
-- public checkpoint documentation aligned across the repository,
-- remaining work is optional polish rather than core functionality.
+- six Streamlit workflows are implemented,
+- generated privacy-safe data and DuckDB models are in place,
+- 13 quality checks are passing,
+- the assistant answers natural-language questions with text, contextual charts, and trace metadata,
+- documentation is aligned for portfolio case-study reuse,
+- and remaining work is optional presentation polish, such as adding screenshots from the live application.

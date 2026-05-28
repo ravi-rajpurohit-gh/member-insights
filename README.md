@@ -87,21 +87,67 @@ Mirrors a production environment with:
 
 ```mermaid
 flowchart LR
-    A["Synthetic wearable and app events"] --> B["stg_member_events"]
-    C["Synthetic member profiles"] --> D["dim_members"]
-    B --> E["fct_member_day"]
-    D --> E
-    E --> F["agg_cohort_daily"]
-    D --> L["agg_member_lifecycle"]
-    F --> G["Performance Signals"]
-    L --> R["Growth & Retention"]
-    E --> X["Experimentation"]
-    X --> H["Insights Assistant"]
+    subgraph Sources["Privacy-Safe Event Sources"]
+        A["Wearable telemetry<br/>heart rate, sleep, strain, recovery"]
+        B["App engagement<br/>sessions, workouts, check-ins"]
+        C["Member lifecycle<br/>plan, cohort, goal, status"]
+        D["Algorithm release assignments<br/>baseline vs release candidate"]
+    end
+
+    subgraph Warehouse["Modeled Analytical Layer"]
+        E["stg_member_events<br/>immutable event table"]
+        F["dim_members<br/>member attributes"]
+        G["dim_experiment_assignments<br/>release groups"]
+        H["fct_member_day<br/>one row per member per day"]
+        I["agg_cohort_daily<br/>performance signal mart"]
+        J["agg_member_lifecycle<br/>growth and retention mart"]
+        K["agg_experiment_summary<br/>release outcome mart"]
+        L["metric_dictionary<br/>governed definitions"]
+        M["pipeline_run_log + model_inventory<br/>platform observability"]
+    end
+
+    subgraph Product["Analytics Product Surface"]
+        N["Growth & Retention"]
+        O["Performance Signals"]
+        P["Experimentation"]
+        Q["Data Platform Health"]
+        R["Metric Dictionary"]
+        S["Insights Assistant<br/>governed visual analysis"]
+    end
+
+    subgraph Production["Production Direction"]
+        T["Kafka/Kinesis"]
+        U["Spark/PySpark"]
+        V["Snowflake + dbt"]
+        W["AWS observability"]
+        X["Approved AI tooling"]
+    end
+
+    A --> E
+    B --> E
+    C --> F
+    D --> G
+    E --> H
     F --> H
-    L --> H
-    I["Quality checks"] --> P["Data Platform Health"]
-    J["metric_dictionary"] --> H
-    K["model_inventory"] --> P
+    G --> H
+    H --> I
+    F --> J
+    H --> K
+    I --> O
+    J --> N
+    K --> P
+    M --> Q
+    L --> R
+    I --> S
+    J --> S
+    K --> S
+    M --> S
+    L --> S
+    A -.production intake.-> T
+    H -.batch and streaming scale.-> U
+    H -.warehouse serving.-> V
+    Q -.monitoring and alerts.-> W
+    S -.approved AI layer.-> X
 ```
 
 ## Project Structure
@@ -119,7 +165,7 @@ member-insights/
     ui.py                 # Shared CSS, labels, cards, and chart styling
   sql/01_build_models.sql
   tests/run_quality_checks.py
-  .streamlit/config.toml # Streamlit dark theme configuration
+  .streamlit/config.toml  # Streamlit dark theme configuration
   .github/workflows/keep-alive.yml
   data/
 ```

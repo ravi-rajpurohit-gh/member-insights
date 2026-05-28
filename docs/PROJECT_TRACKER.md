@@ -25,7 +25,7 @@ Build a compact, production-minded member analytics platform that demonstrates e
 - Insights Assistant now uses governed analytical routing with text responses, contextual charts, and trace metadata.
 - Assistant UI uses bordered conversation blocks and hides prompt suggestions once a thread starts.
 - Public checkpoint: application, documentation, repository hygiene, and GitHub state are aligned.
-- Checkpoint status: app is stable, documented, tested, pushed, and ready for walkthrough practice.
+- Checkpoint status: app is stable, documented, tested, pushed, and ready for live-app sharing and portfolio case-study packaging.
 
 ## Key Decisions
 
@@ -78,12 +78,14 @@ Build a compact, production-minded member analytics platform that demonstrates e
 | 2026-05-25 | Added governed visual analyst behavior: assistant answers can include contextual charts while preserving deterministic tool routing and zero external API dependency. |
 | 2026-05-25 | Reworked assistant conversation UI into reliable bordered message blocks, removed `YOU`/`MI` custom badges, and hid prompt suggestions after the conversation starts. |
 | 2026-05-25 | Completed project checkpoint: documentation, tracker, lifecycle, app state, quality checks, browser smoke test, git history, and GitHub push are aligned. |
+| 2026-05-27 | Refined README architecture diagram to show sources, modeled analytical layer, product surface, and production direction. |
+| 2026-05-27 | Rebuilt case study into a portfolio-ready narrative focused on product problem, target users, architecture, data model, governed AI, validation, production evolution, and walkthrough path. |
 
 ## Open Questions
 
 - Whether to deploy the Streamlit app publicly.
-- Whether to add screenshots to README for GitHub polish.
-- Whether to add a short architecture image or keep the Mermaid diagram in README only.
+- Whether to add screenshots to README and portfolio case study after capturing Growth & Retention, Experimentation, and Insights Assistant.
+- Whether to convert the Mermaid architecture into a designed image for the portfolio page.
 - Whether to split tabs into separate Streamlit pages later if the project grows beyond its current compact product scope.
 - Whether to add an optional provider-backed LLM interpretation layer behind the governed router for environments where approved AI infrastructure exists.
 
@@ -91,7 +93,7 @@ Build a compact, production-minded member analytics platform that demonstrates e
 
 - Polish the 90-second product walkthrough until it sounds conversational.
 - Prepare answers for model design, event-table design, data quality, freshness, streaming vs batch, experimentation, and AI governance.
-- Optionally add screenshots to the README after the visual design is final.
+- Add screenshots from the live app to the README and portfolio case study after capturing Growth & Retention, Experimentation, and Insights Assistant.
 - Keep app structure stable unless a bug is found.
 
 ## Walkthrough Notes
